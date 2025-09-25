@@ -1,0 +1,10 @@
+# * = gitignore file for the Res directory
+# !*/ = don't ignore subdirectories
+# !.gitignore = don't ignore this gitignore file
+
+venv/
+__pycache__/
+*.pyc
+data/raw/
+data/processed/
+.vscode/
