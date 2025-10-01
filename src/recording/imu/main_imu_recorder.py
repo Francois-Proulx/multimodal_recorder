@@ -23,7 +23,7 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"imu_data_{timestamp}.csv"
     save_path = project_file("data", "raw", "imu")
-    calib_file = project_file("imu", "calibMPU9250.json")
+    calib_file = project_file("configs", "calibMPU9250.json")
     print(calib_file)
     
     # Processes
