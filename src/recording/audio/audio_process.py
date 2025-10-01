@@ -1,38 +1,58 @@
 import sounddevice as sd
-import numpy as np
-import time
-from multiprocessing import Process, Queue
+import queue
+from multiprocessing import Process
+import signal
 
 class AudioProcess(Process):
     """
-    Records audio in chunks and pushes them into a Queue.
+    Captures audio from a device and puts chunks into a queue.
+    Stops immediately when stop_event is set.
     """
-    def __init__(self, audio_queue: Queue, stop_event, samplerate=44100, channels=1, chunk_size=1024):
+    def __init__(self, queue, stop_event, device='hw:3,0', samplerate=16000,
+                 channels=16, blocksize=4096, sampwidth=2):
         super().__init__()
-        self.audio_queue = audio_queue
+        self.queue = queue
         self.stop_event = stop_event
+        self.device = device
         self.samplerate = samplerate
         self.channels = channels
-        self.chunk_size = chunk_size
+        self.blocksize = blocksize
+
+        if sampwidth == 2:
+            self.dtype = 'int16'
+        elif sampwidth == 4:
+            self.dtype = 'int32'
+        else:
+            raise ValueError("Unsupported sampwidth. Use 2 or 4.")
+
+    def callback(self, indata, frames, time_info, status):
+        if status:
+            print("AudioProcess status:", status)
+        try:
+            self.queue.put_nowait({"audio": indata.copy()})
+        except queue.Full:
+            pass  # drop frames if queue is full
 
     def run(self):
-        print("AudioProcess started")
-        with sd.InputStream(
-            samplerate=self.samplerate,
-            channels=self.channels,
-            blocksize=self.chunk_size,
-            dtype='int16',
-            callback=self.audio_callback
-        ):
-            while not self.stop_event.is_set():
-                time.sleep(0.1)
-        print("AudioProcess stopping")
+        signal.signal(signal.SIGINT, signal.SIG_IGN)  # ignore Ctrl+C in child
+        print(f"AudioProcess started on device {self.device}")
 
-    def audio_callback(self, indata, frames, time_info, status):
-        if status:
-            print("Audio status:", status)
-        timestamp = time.time_ns()
-        self.audio_queue.put({
-            "timestamp": timestamp,
-            "audio": indata.copy()  # store chunk copy
-        })
+        try:
+            with sd.InputStream(
+                device=self.device,
+                channels=self.channels,
+                samplerate=self.samplerate,
+                blocksize=self.blocksize,
+                dtype=self.dtype,
+                callback=self.callback
+            ) as stream:
+                while not self.stop_event.is_set():
+                    self.stop_event.wait(0.05)  # poll stop_event frequently
+
+                # Force the InputStream to stop immediately
+                stream.abort()
+
+        except Exception as e:
+            print("AudioProcess error:", e)
+        finally:
+            print("AudioProcess stopping")

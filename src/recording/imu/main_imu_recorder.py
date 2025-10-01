@@ -22,7 +22,7 @@ def main():
     # Paths
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"imu_data_{timestamp}.csv"
-    save_path = project_file("Recordings")
+    save_path = project_file("data", "raw", "imu")
     calib_file = project_file("imu", "calibMPU9250.json")
     print(calib_file)
     
