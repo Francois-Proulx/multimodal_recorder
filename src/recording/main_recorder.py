@@ -1,5 +1,5 @@
 from multiprocessing import Manager, Queue
-from imu_process import IMUProcess
+from src.recording.imu.imu_process import IMUProcess
 from filewriter_process import FileWriterProcess
 # from audio_process import AudioProcess
 # from camera_process import CameraProcess

@@ -3,8 +3,8 @@ from datetime import datetime
 from multiprocessing import Manager, Queue
 
 # Custom imports
-from src.recording.imu_process import IMUProcess
-from src.recording.filewriter_process import FileWriterProcess
+from src.recording.imu.imu_process import IMUProcess
+from src.recording.imu.filewriter_process import FileWriterProcess
 from src.utils.io import project_file
 
 # Stop handler for Ctrl+C

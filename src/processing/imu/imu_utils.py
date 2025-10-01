@@ -8,12 +8,14 @@ def load_imu_data(filename:str):
     """Load IMU CSV file and return numpy arrays ready for fusion."""
     df = pd.read_csv(filename)
     temps = df['timestamp'].to_numpy()
+    
     acc = np.ascontiguousarray(df[['acc_x','acc_y','acc_z']].to_numpy())
     gyro = np.ascontiguousarray(df[['gyro_x','gyro_y','gyro_z']].to_numpy())
     mag = np.ascontiguousarray(df[['mag_x','mag_y','mag_z']].to_numpy())
     
     # normalize time
-    temps -= temps[0]
+    temps = (temps - temps[0]) / 1e9  # convert ns to seconds
+    print(np.max(temps[1:] - temps[:-1]), np.min(temps[1:] - temps[:-1]), np.mean(temps[1:] - temps[:-1]))
     Ts = np.mean(temps[1:] - temps[:-1])
     return Ts, acc, gyro, mag, temps
 

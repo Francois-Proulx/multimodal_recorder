@@ -17,8 +17,17 @@ from src.processing.imu.visualize import plot_euler, plot_mic_trajectory, plot_q
 
 
 # Load raw data from IMU9250
-SIG_FILE = project_file("data", "raw", "imu", "imu_data_20241023-170624.csv")
+file_name = "imu_data_20250926_151847.csv"  # "imu_data_20241023-170624" "imu_data_20250926_123820"  "imu_data_20250926_151847"
+SIG_FILE = project_file("data", "raw", "imu", file_name)
 Ts, acc, gyro, mag, _ = load_imu_data(SIG_FILE)
+print(Ts)
+plt.figure()
+plt.plot(acc); plt.title("Accelerometer raw")
+plt.figure()
+plt.plot(gyro); plt.title("Gyroscope raw")
+plt.figure()
+plt.plot(mag); plt.title("Magnetometer raw")
+plt.show()
 
 # --- Sensor fusion ---
 
@@ -29,12 +38,13 @@ Ts, acc, gyro, mag, _ = load_imu_data(SIG_FILE)
 #     magDistRejectionEnabled=False,
 # )
 
-# # Online (real-time, no batch bias estimation)
-# quat = run_vqf(Ts, gyro, acc, mag, offline=False)
+# Online (real-time, no batch bias estimation)
+quat = run_vqf(Ts, gyro, acc, mag, offline=False)
+plot_quat(quat, title="Quaternions from VQF (online mode)")
 
-# Offline (batch mode, estimates bias over the recording)
-quat = run_vqf(Ts, gyro, acc, mag, offline=True)
-plot_quat(quat, title="Quaternions from VQF (offline mode)")
+# # Offline (batch mode, estimates bias over the recording)
+# quat = run_vqf(Ts, gyro, acc, mag=None, offline=True)
+# plot_quat(quat, title="Quaternions from VQF (offline mode)")
 
 # --- Convert to Euler ---
 roll, pitch, yaw = quats_to_euler(quat)
