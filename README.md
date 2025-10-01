@@ -5,7 +5,8 @@ audioIMUrec/
 ├── setup.sh                # optional: install script for Pi (libs, drivers, etc.)
 │
 ├── configs/                # configuration files
-│   ├── imu_calib.json      # calibration for MPU9250
+│   ├── imuCalibration.py   # script to calibrate IMU
+│   ├── calibMPU9250.json   # calibration for MPU9250
 │   ├── audio_config.yaml   # mic/sample rate settings
 │   └── video_config.yaml   # camera settings
 │
@@ -21,30 +22,35 @@ audioIMUrec/
 │   └── sync/               # synchronization metadata (timestamps)
 │
 ├── src/                    # main Python code
-│   ├── recording/          # Raspberry Pi logging scripts
-│   │   ├── imu_logger.py
-│   │   ├── audio_logger.py
-│   │   ├── video_logger.py
-│   │   └── recorder.py     # wrapper to run all loggers together
+│   ├── recording/          # Raspberry Pi recording scripts
+│   │   ├── imu/            # IMU
+│   │   │   ├── filewriter_process.py
+│   │   │   ├── imu_process.py
+│   │   │   ├── main_imu_recorder.py
+│   │   ├── audio/            # Audio
+│   │   │   ├── filewriter_process.py
+│   │   │   ├── audio_process.py
+│   │   │   ├── main_audio_recorder.py
+│   │   ├── video/            # Video
+│   │   │   ├── filewriter_process.py
+│   │   │   ├── video_process.py
+│   │   │   ├── main_video_recorder.py
+│   │   └── main_recorder.py     # wrapper to run all loggers together
 │   │
 │   ├── processing/         # offline processing
 │   │   ├── imu/            # IMU filters + fusion
-│   │   │   ├── vqf_fusion.py
-│   │   │   ├── kalman_fusion.py
-│   │   │   └── madgwick_fusion.py
+│   │   │   ├── imu_main.py
+│   │   │   ├── imu_utils.py
+│   │   │   └── visualize.py
 │   │   ├── audio/          # audio analysis (STFT, MFCC, etc.)
 │   │   └── video/          # video preprocessing (frame extract, sync)
 │   │
 │   ├── utils/              # helper functions (shared)
-│   │   ├── quaternion.py   # conversions, rotations
+│   │   ├── referential_change.py   # conversions, rotations
 │   │   ├── plotting.py     # visualization utilities
 │   │   ├── sync.py         # aligning IMU/audio/video
 │   │   └── io.py           # file I/O, saving/loading
-│   │
-│   └── main.py             # entry point (example: offline analysis pipeline)
 |
 │
 └── tests/                  # unit tests
-    ├── test_quaternion.py
-    ├── test_vqf.py
-    └── test_sync.py
+    ├── to be done...
