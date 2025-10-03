@@ -1,43 +1,78 @@
-from multiprocessing import Manager, Queue
-from src.recording.imu.imu_process import IMUProcess
-from filewriter_process import FileWriterProcess
-# from audio_process import AudioProcess
-# from camera_process import CameraProcess
 import signal
+from datetime import datetime
+from multiprocessing import Manager, Queue
+from src.utils.io import project_file
 
-# Stop handler
+# Import all processes
+from src.recording.audio.audio_process import AudioProcess
+from src.recording.audio.audio_filewriter import FileWriterProcess as AudioWriter
+from src.recording.imu.imu_process import IMUProcess
+from src.recording.imu.imu_filewriter import FileWriterProcess as IMUWriter
+from src.recording.video.video_process import VideoProcess
+from src.recording.video.video_filewriter import VideoFileWriter
+
 def stop_handler(stop_event, sig, frame):
     print("Stop signal received")
     stop_event.set()
-        
+
 def main():
     manager = Manager()
     stop_event = manager.Event()
-    imu_queue = Queue()
-    # audio_queue = Queue()
-    # camera_queue = Queue()
 
+    # Register Ctrl+C
     signal.signal(signal.SIGINT, lambda s,f: stop_handler(stop_event, s, f))
 
-    # Processes
-    imu_proc = IMUProcess(imu_queue, stop_event)
-    file_writer_proc = FileWriterProcess(imu_queue, stop_event, save_path="./Recordings")
-    # audio_proc = AudioProcess(audio_queue, stop_event)
-    # camera_proc = CameraProcess(camera_queue, stop_event)
+    # Session prefix
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    prefix = f"session_{timestamp}"
 
-    # Start
-    imu_proc.start()
-    file_writer_proc.start()
-    # audio_proc.start()
-    # camera_proc.start()
+    # Base save path for multimodal session
+    session_path = project_file("data", "raw", "multimodal", prefix)
 
-    # Wait
-    imu_proc.join()
-    file_writer_proc.join()
-    # audio_proc.join()
-    # camera_proc.join()
+    # === Queues ===
+    audio_queue = Queue(maxsize=200)
+    imu_queue = Queue(maxsize=200)
+    frame_queue = Queue(maxsize=200)
 
-    print("All recordings finished.")
+    # === Audio ===
+    audio_proc = AudioProcess(audio_queue, stop_event, device='hw:3,0',
+                              samplerate=16000, channels=16, blocksize=4096, sampwidth=4)
+    audio_writer = AudioWriter(audio_queue, stop_event,
+                               save_path=project_file(session_path, "audio"),
+                               filename="audio.wav",
+                               samplerate=16000, channels=16, sampwidth=4)
+
+    # === IMU ===
+    calib_file = project_file("configs", "calibMPU9250.json")
+    imu_proc = IMUProcess(imu_queue, stop_event, calib_file=calib_file)
+    imu_writer = IMUWriter(imu_queue, stop_event,
+                           save_path=project_file(session_path, "imu"),
+                           filename="imu.csv")
+
+    # === Video ===
+    width, height, fps = 640, 480, 30
+    video_proc = VideoProcess(frame_queue, stop_event, width=width, height=height, fps=fps)
+    video_writer = VideoFileWriter(frame_queue, stop_event,
+                                   save_path=project_file(session_path, "video"),
+                                   prefix="video", fps=fps)
+
+    # Start all processes
+    procs = [audio_proc, audio_writer, imu_proc, imu_writer, video_proc, video_writer]
+    for p in procs:
+        p.start()
+
+    try:
+        # Join gracefully until Ctrl+C
+        while any(p.is_alive() for p in procs):
+            for p in procs:
+                p.join(timeout=0.5)
+    except KeyboardInterrupt:
+        print("Main caught Ctrl+C, stopping processes")
+        stop_event.set()
+        for p in procs:
+            p.join()
+
+    print("Multimodal recording finished")
 
 if __name__ == "__main__":
     main()

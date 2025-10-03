@@ -2,6 +2,7 @@ import sounddevice as sd
 import queue
 from multiprocessing import Process
 import signal
+import time
 
 class AudioProcess(Process):
     """
@@ -29,8 +30,11 @@ class AudioProcess(Process):
         if status:
             print("AudioProcess status:", status)
         try:
-            self.queue.put_nowait({"audio": indata.copy()})
+            self.queue.put_nowait({
+                "audio": indata.copy(),
+                "timestamp": time.time()})
         except queue.Full:
+            print("AudioProcess queue full, dropping frame")
             pass  # drop frames if queue is full
 
     def run(self):

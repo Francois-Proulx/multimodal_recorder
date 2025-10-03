@@ -29,14 +29,17 @@ class VideoProcess(Process):
         try:
             while not self.stop_event.is_set():
                 frame = picam2.capture_array()
+                ts = time.time()
                 try:
                     self.frame_queue.put_nowait({
                         "frame": frame,       # the frame array from Picamera2
-                        "ts": time.time()     # timestamp at capture
+                        "ts": ts     # timestamp at capture
                     })
                 except Full:
                     pass  # drop frames if queue is full
-                time.sleep(1 / self.fps)
+                
+                # sleep respecting stop_event for immediate stopping
+                self.stop_event.wait(1 / self.fps)
         except Exception as e:
             print("VideoProcess error:", e)
         finally:

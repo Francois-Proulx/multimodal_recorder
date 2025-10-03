@@ -5,7 +5,7 @@ from src.utils.io import project_file
 
 # Custom imports
 from src.recording.video.video_process import VideoProcess
-from src.recording.video.filewriter_process import VideoFileWriter
+from src.recording.video.video_filewriter import VideoFileWriter
 
 def stop_handler(stop_event, sig, frame):
     print("Stop signal received")
@@ -20,20 +20,18 @@ def main():
 
     # Paths
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"video_{timestamp}.avi"
+    prefix = f"video_{timestamp}"
     save_path = project_file("data", "raw", "video")
 
     # Video parameters
-    device = 0  # default Pi camera
-    width = 1640
-    height = 1232
+    width, height = 640, 480
     fps = 30
 
     # Processes
     video_proc = VideoProcess(frame_queue, stop_event, width=width, height=height, fps=fps)
-    file_writer_proc = VideoFileWriter(frame_queue, stop_event, save_path=save_path, filename=filename,
-                                       width=width, height=height, fps=fps)
+    file_writer_proc = VideoFileWriter(frame_queue, stop_event, save_path=save_path, prefix=prefix, fps=fps)
 
+    print("Starting VideoProcess and VideoFileWriter...")
     video_proc.start()
     file_writer_proc.start()
 
@@ -45,7 +43,6 @@ def main():
         print("Main caught Ctrl+C, stopping processes")
         stop_event.set()
         # Send poison pill to guarantee writer exit
-        frame_queue.put(None)
         video_proc.join()
         file_writer_proc.join()
 

@@ -5,7 +5,7 @@ from src.utils.io import project_file
 
 # Custom imports
 from src.recording.audio.audio_process import AudioProcess
-from src.recording.audio.filewriter_process import FileWriterProcess
+from src.recording.audio.audio_filewriter import FileWriterProcess
 
 def stop_handler(stop_event, sig, frame):
     print("Stop signal received")
