@@ -32,7 +32,7 @@ class AudioProcess(Process):
         try:
             self.queue.put_nowait({
                 "audio": indata.copy(),
-                "timestamp": time.time()})
+                "timestamp": time.time() - (self.blocksize / self.samplerate)})  # timestamp at start of block
         except queue.Full:
             print("AudioProcess queue full, dropping frame")
             pass  # drop frames if queue is full
