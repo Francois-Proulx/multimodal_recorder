@@ -101,6 +101,12 @@ def rebase_quaternions_to_initial(quat):
     return r_rebased.as_quat()
 
 
+def rvec_to_quaternion(rvec):
+    """Convert rotation vector (Rodrigues) to quaternion (x, y, z, w)."""
+    rotation = R.from_rotvec(rvec)
+    return rotation.as_quat()  # returns in (x, y, z, w) format
+
+
 #####  Fixed position on sphere from angles and vice versa #####
 def fixed_position_from_angles(theta, phi, rad=1, radian=True):
     if radian:
@@ -177,12 +183,19 @@ def apply_rotation(R, pB):
     Args:
         R : ndarray, shape (N_frames,3,3)
             Rotation matrices.
-        pB : ndarray, shape (3,N_points)
+        pB : ndarray, shape (N_frames,3)
             Points in sensor frame.
     
     Returns:
-        pA : ndarray, shape (N_frames,3,N_points)
+        pA : ndarray, shape (N_frames,3)
             Points in global frame.
     """
+    nb_of_frames = R.shape[0]
+    if pB.ndim == 1:
+        pB = np.tile(pB, (nb_of_frames, 1))  # Repeat for each frame
+    elif pB.shape[0] != nb_of_frames:
+        raise ValueError("Number of frames in R and pB must match.")
+    
     # R @ pB for each frame using einsum
-    return np.einsum('nij,jk->nik', R, pB)
+    pA = np.einsum('nij,nj->ni', R, pB) 
+    return pA

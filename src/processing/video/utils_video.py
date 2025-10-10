@@ -2,7 +2,11 @@ from pathlib import Path
 import subprocess
 import pandas as pd
 import cv2
+import apriltag
 import csv
+import numpy as np
+
+from src.utils.referential_change import apply_rotation, quaternion_to_euler, rvec_to_quaternion
 
 def reconstruct_video(frames_dir, video_ts_path, output_dir=None, output_filename=None, codec="MJPG"):
     """
@@ -122,3 +126,149 @@ def merge_audio_video(video_path, video_ts_path, audio_path, audio_ts_path, outp
     subprocess.run(cmd, check=True)
     print(f"Merged video saved to {mp4_path}")
     return mp4_path
+
+
+##### AprilTag functions #####
+def load_apriltag_detector(family="tag36h11"):
+    options = apriltag.DetectorOptions(families=family)
+    detector = apriltag.Detector(options)
+    return detector
+
+
+def detect_apriltags_in_frame(detector, frame):
+    """Detect AprilTags in a BGR frame."""
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    tags = detector.detect(gray)
+    return tags
+
+
+def estimate_apriltag_pose_in_frame(tag, tag_size, camera_matrix, dist_coeffs):
+    """
+    Estimate the pose of an AprilTag in the camera frame.
+
+    Args:
+        tag: Detected AprilTag object from apriltag detector.
+        tag_size (float): Size of the tag's side in meters.
+        camera_matrix (np.ndarray): Camera intrinsic matrix.
+        dist_coeffs (np.ndarray): Camera distortion coefficients.
+    Returns:
+        rvec (np.ndarray): Rotation vector (Rodrigues) of the tag in camera frame.
+        tvec (np.ndarray): Translation vector of the tag in camera frame.
+    """
+    object_points = np.array([
+        [-tag_size/2, -tag_size/2, 0],
+        [ tag_size/2, -tag_size/2, 0],
+        [ tag_size/2,  tag_size/2, 0],
+        [-tag_size/2,  tag_size/2, 0]
+    ], dtype=np.float32)
+
+    image_points = np.array(tag.corners, dtype=np.float32)
+
+    success, rvec, tvec = cv2.solvePnP(object_points, image_points, camera_matrix, dist_coeffs)
+    if not success:
+        raise RuntimeError("Could not solve PnP for AprilTag.")
+    return success, rvec, tvec
+
+
+def draw_apritag_pose_axis_in_frame(frame, rvec, tvec, camera_matrix, dist_coeffs, tag_size):
+    """
+    Draws a coordinate axis on the detected AprilTag for visualization.
+    """
+    axis_length = tag_size * 0.5
+    cv2.drawFrameAxes(frame, camera_matrix, dist_coeffs, rvec, tvec, axis_length)
+    return frame
+
+
+def quats_to_euler_video(quat):
+    """Convert quaternion to roll, pitch, yaw and unwrap."""
+    q1, q2, q3, q4 = quat[0], quat[1], quat[2], quat[3]
+    roll, pitch, yaw = quaternion_to_euler(q1,q2,q3,q4)
+    return roll, pitch, yaw
+
+
+def rvec_to_quat_video(rvec):
+    """Convert rotation vector (Rodrigues) to quaternion (x, y, z, w)."""
+    quat = rvec_to_quaternion(rvec)
+    return quat # returns in (x, y, z, w) format
+
+
+def process_apriltag_video(video_path, video_ts_path, tag_family, tag_size, camera_matrix, dist_coeffs, save_new_video = True, output_dir=None, output_filename=None, codec="MJPG"):
+    """
+    Process a video sequence of images to detect AprilTags and estimate their poses.
+
+    Args:
+        video_path (str or Path): Path to the .avi video.
+        video_ts_path (str or Path): Path to the CSV containing frame_index and timestamp.
+        tag_familly (str): AprilTag family to use (e.g., 'tag36h11').
+        tag_size (float): Size of the tag's side in meters.
+        camera_matrix (np.ndarray): Camera intrinsic matrix.
+        dist_coeffs (np.ndarray): Camera distortion coefficients.
+        output_dir (str or Path, optional): Directory to save the processed video. 
+                                            Defaults to the folder containing `video_ts_path`.
+        output_filename (str, optional): Filename for the output video. Defaults to 'video_apriltag.avi'.
+        codec (str, optional): FourCC codec for the output video. Default is MJPG.
+
+    Returns:
+    """
+    # Paths
+    video_path = Path(video_path)
+    video_ts_path = Path(video_ts_path)
+    output_dir = Path(output_dir) if output_dir else video_path.parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_filename = output_filename or "video_with_apriltag.avi"
+    output_path = output_dir / output_filename
+    
+    # Load apriltag detector, video and timestamps
+    detector = load_apriltag_detector(tag_family)
+    cap = cv2.VideoCapture(str(video_path))
+    video_ts = pd.read_csv(video_ts_path)
+    timestamps = video_ts['timestamp'].to_list()
+    
+    # Video properties
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    num_frames_in_video = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    if num_frames_in_video != len(timestamps):
+        print(f"Warning: number of frames in video ({num_frames_in_video}) "
+          f"does not match number of timestamps ({len(timestamps)})")
+    
+    
+    # Initialize output vectors and video writer
+    quats = np.zeros((len(timestamps), 4), dtype=np.float32)   # x, y, z, w
+    eulers = np.zeros((len(timestamps), 3), dtype=np.float32)  # roll, pitch, yaw
+    writer = None
+
+    # Process each frame
+    for idx, ts in enumerate(timestamps):
+        ok, frame = cap.read()
+        if not ok:
+            break
+        
+        tags = detect_apriltags_in_frame(detector, frame)
+
+        if len(tags) > 0:
+            tag = tags[0]  # assuming one fixed tag
+            success, rvec, tvec = estimate_apriltag_pose_in_frame(tag, tag_size, camera_matrix, dist_coeffs)
+            if success:
+                quats[idx,:] = rvec_to_quat_video(rvec)
+                eulers[idx,:] = quats_to_euler_video(quats[idx,:])
+            else:
+                quats[idx,:] = np.nan
+                eulers[idx,:] = np.nan
+            
+            if save_new_video:
+                frame = draw_apritag_pose_axis_in_frame(frame, rvec, tvec, camera_matrix, dist_coeffs, tag_size)
+        
+        else:
+            quats[idx,:] = np.nan
+            eulers[idx,:] = np.nan
+
+        if save_new_video:
+            if writer is None:
+                h, w = frame.shape[:2]
+                writer = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*codec), fps, (w,h))
+            writer.write(frame)
+
+    cap.release()
+    if writer: writer.release()
+    if save_new_video: print(f"Video saved at {output_path} (fps ~{fps:.2f})")
+    return quats, eulers, timestamps
