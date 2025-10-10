@@ -1,12 +1,15 @@
 import numpy as np
+from scipy.spatial.transform import Rotation as R, Slerp
 
-def quaternion_to_euler_angle_vectorized(w, x, y, z):
+
+##### Quaternion to Euler transformation #####
+def quaternion_to_euler(x, y, z, w):
     """
-    Convert quaternions (w, x, y, z) to Euler angles (roll, pitch, yaw) in degrees.
+    Convert quaternions (x, y, z, w) to Euler angles (roll, pitch, yaw) in degrees.
     
     Parameters
     ----------
-    w, x, y, z : array-like
+    x, y, z, w : array-like
         Quaternion components (can be scalars or numpy arrays of the same shape)
     
     Returns
@@ -33,6 +36,72 @@ def quaternion_to_euler_angle_vectorized(w, x, y, z):
 
     return roll, pitch, yaw
 
+
+def euler_to_quaternion(roll, pitch, yaw, degrees=True):
+    """
+    Convert Euler angles (roll, pitch, yaw) in rad or degrees to quaternions (x, y, z, w).
+    
+    Parameters
+    ----------
+    roll, pitch, yaw : numpy arrays
+        Euler angles in degrees or radians
+    degrees : bool
+        If True, input angles are in degrees; if False, in radians.
+    
+    
+    Returns
+    -------
+    x, y, z, w : numpy arrays
+        Quaternion components
+    """
+    if degrees:
+        roll = np.radians(roll)
+        pitch = np.radians(pitch)
+        yaw = np.radians(yaw)
+    
+    # ZYX intrinsic rotation (same as rotation_matrix_from_euler)
+    cy = np.cos(yaw*0.5)
+    sy = np.sin(yaw*0.5)
+    cp = np.cos(pitch*0.5)
+    sp = np.sin(pitch*0.5)
+    cr = np.cos(roll*0.5)
+    sr = np.sin(roll*0.5)
+
+    w = cr*cp*cy + sr*sp*sy
+    x = sr*cp*cy - cr*sp*sy
+    y = cr*sp*cy + sr*cp*sy
+    z = cr*cp*sy - sr*sp*cy
+
+    return x, y, z, w
+
+
+##### Quaternion interpolation and rebasing #####
+def interpolate_quaternions(quat, timestamps, new_timestamps):
+    """Interpolate quaternion sequence to new timestamps."""
+    # Convert quaternions to Rotation objects
+    r = R.from_quat(quat)
+    
+    # Create SLERP object
+    slerp = Slerp(timestamps, r)
+    
+    # Interpolate to new timestamps
+    new_r = slerp(new_timestamps)
+    
+    return new_r.as_quat(), new_r.as_matrix()
+
+
+def rebase_quaternions_to_initial(quat):
+    """
+    Rebase quaternion sequence so that the first quaternion becomes identity.
+    This makes all rotations relative to the initial orientation.
+    """
+    r = R.from_quat(quat)
+    r0_inv = r[0].inv()
+    r_rebased = r0_inv * r  # equivalent to R_rel = R0.T * R
+    return r_rebased.as_quat()
+
+
+#####  Fixed position on sphere from angles and vice versa #####
 def fixed_position_from_angles(theta, phi, rad=1, radian=True):
     if radian:
         pos = (rad)*np.array([np.cos(theta)*np.sin(phi),
@@ -53,6 +122,7 @@ def angles_from_fixed_position(pos):
     return theta, phi
 
 
+#####  Rotation matrices and point transformation #####
 def rotation_matrix_from_euler(roll, pitch, yaw, degrees=True):
     """
     Create 3x3 rotation matrices from Euler angles (roll, pitch, yaw).
@@ -98,43 +168,6 @@ def rotation_matrix_from_euler(roll, pitch, yaw, degrees=True):
 
     return R
 
-def Rotation_matrix(alphas, betas, gammas):
-    nb_of_samples = alphas.shape[0]
-    alphas_rad = alphas/180*np.pi
-    betas_rad = betas/180*np.pi
-    gammas_rad = gammas/180*np.pi
-
-    # Rz(alpha)
-    Rz = np.zeros((nb_of_samples,4,4))
-    Rz[:,0,0] = np.cos(alphas_rad)
-    Rz[:,0,1] = -np.sin(alphas_rad)
-    Rz[:,1,0] = np.sin(alphas_rad)
-    Rz[:,1,1] = np.cos(alphas_rad)
-    Rz[:,2,2] = np.linspace(1,1,nb_of_samples)
-    Rz[:,3,3] = np.linspace(1,1,nb_of_samples)
-
-    # Ry(beta)
-    Ry = np.zeros((nb_of_samples,4,4))
-    Ry[:,0,0] = np.cos(betas_rad)
-    Ry[:,0,2] = np.sin(betas_rad)
-    Ry[:,1,1] = np.linspace(1,1,nb_of_samples)
-    Ry[:,2,0] = -np.sin(betas_rad)
-    Ry[:,2,2] = np.cos(betas_rad)
-    Ry[:,3,3] = np.linspace(1,1,nb_of_samples)
-
-    # Rz(gamma)
-    Rx = np.zeros((nb_of_samples,4,4))
-    Rx[:,0,0] = np.linspace(1,1,nb_of_samples)
-    Rx[:,1,1] = np.cos(gammas_rad)
-    Rx[:,1,2] = -np.sin(gammas_rad)
-    Rx[:,2,1] = np.sin(gammas_rad)
-    Rx[:,2,2] = np.cos(gammas_rad)
-    Rx[:,3,3] = np.linspace(1,1,nb_of_samples)
-
-    # R
-    R = Rz@Ry@Rx
-
-    return R
 
 
 def apply_rotation(R, pB):
