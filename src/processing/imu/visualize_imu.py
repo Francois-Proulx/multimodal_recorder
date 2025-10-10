@@ -1,5 +1,13 @@
 import matplotlib.pyplot as plt
 
+def plot_raw(temps, acc, gyro, mag):
+    plt.figure()
+    plt.subplot(311); plt.plot(temps, acc); plt.title("Accelerometer raw"); plt.grid(True)
+    plt.subplot(312); plt.plot(temps, gyro); plt.title("Gyroscope raw"); plt.grid(True)
+    plt.subplot(313); plt.plot(temps, mag); plt.title("Magnetometer raw"); plt.grid(True)
+    plt.tight_layout()
+    
+
 def plot_euler(roll, pitch, yaw, title="Euler angles"):
     plt.figure()
     plt.subplot(311); plt.plot(roll); plt.ylabel("Roll"); plt.grid(True)
@@ -7,7 +15,7 @@ def plot_euler(roll, pitch, yaw, title="Euler angles"):
     plt.subplot(313); plt.plot(yaw); plt.ylabel("Yaw"); plt.grid(True)
     plt.suptitle(title)
     plt.tight_layout()
-    plt.show()
+
     
 def plot_quat(quats, title="Quaternions"):
     """Plot quaternion components over time.
@@ -27,7 +35,6 @@ def plot_quat(quats, title="Quaternions"):
 
     plt.suptitle(title)
     plt.tight_layout()
-    plt.show()
 
 def plot_mic_trajectory(pA):
     fig = plt.figure()
@@ -36,4 +43,3 @@ def plot_mic_trajectory(pA):
     ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
     ax.set_title('Mic trajectory in global frame')
     ax.legend()
-    plt.show()
