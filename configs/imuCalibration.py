@@ -1,52 +1,91 @@
 import os
-import sys
 import time
 import smbus
 import numpy as np
-
+import pandas as pd
 from imusensor.MPU9250 import MPU9250
 
-address = 0x68
-bus = smbus.SMBus(1)
-imu = MPU9250.MPU9250(bus, address)
+def online_calibration(bus_id=1, address=0x68, save_path=None):
+    """
+    Perform online accelerometer and magnetometer calibration and save results to JSON.
+    
+    Returns:
+        imu: calibrated MPU9250 object
+        calib_file: path to saved JSON file
+    """
+    bus = smbus.SMBus(bus_id)
+    imu = MPU9250.MPU9250(bus, address)
+    imu.begin()
 
-imu.begin()
-print ("Accel calibration starting")
-imu.caliberateAccelerometer()
-print ("Accel calibration Finisehd")
-print (imu.AccelBias)
-print (imu.Accels)
+    print("Accel calibration starting...")
+    imu.caliberateAccelerometer()
+    print("Accel calibration finished")
+    print("Accel bias:", imu.AccelBias)
+    print("Accel scales:", imu.Accels)
 
-print ("Mag calibration starting")
-time.sleep(2)
-# imu.caliberateMagApprox()
-imu.caliberateMagPrecise()
-print ("Mag calibration Finished")
-print (imu.MagBias)
-print (imu.Magtransform)
-print (imu.Mags)
+    print("Mag calibration starting...")
+    time.sleep(2)
+    imu.caliberateMagPrecise()
+    print("Mag calibration finished")
+    print("MagBias:", imu.MagBias)
+    print("MagTransform:", imu.Magtransform)
+    print("Mag scales:", imu.Mags)
 
-calib_file = os.path.join(os.path.dirname(__file__), "calibMPU9250.json")
-imu.saveCalibDataToFile(calib_file)
+    if save_path is None:
+        save_path = os.path.join(os.path.dirname(__file__), "calibMPU9250.json")
+    imu.saveCalibDataToFile(save_path)
+
+    return imu, save_path
 
 
-# imu.begin()
-# imu.caliberateAccelerometer()
-# print ("Acceleration calib successful")
-# imu.caliberateMagPrecise()
-# print ("Mag calib successful")
+def offline_mag_calibration(csv_path):
+    """
+    Compute hard-iron and soft-iron corrections from recorded magnetometer CSV.
+    
+    Args:
+        csv_path (str): Path to CSV file with columns ['mx','my','mz']
+        
+    Returns:
+        MagBias (3,): hard-iron offset
+        MagTransform (3,3): soft-iron correction matrix
+    """
+    mag = pd.read_csv(csv_path).values  # Nx3 array
+    # -------------------
+    # Hard-iron offset
+    MagBias = mag.mean(axis=0)
+    mag_corr = mag - MagBias
+    
+    # -------------------
+    # Soft-iron correction via ellipsoid fit
+    # Algebraic ellipsoid fit
+    def fit_ellipsoid(mag):
+        x, y, z = mag[:,0], mag[:,1], mag[:,2]
+        D = np.column_stack([x*x, y*y, z*z, 2*x*y, 2*x*z, 2*y*z, 2*x, 2*y, 2*z, np.ones_like(x)])
+        U, S, Vt = np.linalg.svd(D, full_matrices=False)
+        v = Vt.T[:, -1]
+        Q = np.array([[v[0], v[3], v[4]],
+                      [v[3], v[1], v[5]],
+                      [v[4], v[5], v[2]]])
+        p = np.array([v[6], v[7], v[8]])
+        r = v[9]
+        center = -np.linalg.solve(Q, p)
+        val = center.T @ Q @ center - r
+        eigvals, eigvecs = np.linalg.eigh(Q / val)
+        A = eigvecs @ np.diag(np.sqrt(eigvals)) @ eigvecs.T
+        return center, A
 
-# accelscale = imu.Accels
-# accelBias = imu.AccelBias
-# gyroBias = imu.GyroBias
-# mags = imu.Mags 
-# magBias = imu.MagBias
+    center, MagTransform = fit_ellipsoid(mag)
+    # Return both bias and transform
+    return MagBias, MagTransform
 
-# imu.saveCalibDataToFile("/home/pi/Documents/frankp/imu/calibMPU9250.json")
-# print ("calib data saved")
 
-# imu.loadCalibDataFromFile("/home/pi/Documents/frankp/imu/calibMPU9250.json")
-# if np.array_equal(accelscale, imu.Accels) & np.array_equal(accelBias, imu.AccelBias) & \
-# 	np.array_equal(mags, imu.Mags) & np.array_equal(magBias, imu.MagBias) & \
-# 	np.array_equal(gyroBias, imu.GyroBias):
-# 	print ("calib loaded properly")
+if __name__ == "__main__":
+    # Example usage
+    imu, calib_file = online_calibration(bus_id=1, address=0x68, save_path="calibMPU9250.json")
+    print(f"Calibration saved to {calib_file}")
+    
+    # For offline calibration, provide path to CSV
+    # mag_csv_path = "path_to_mag_data.csv"
+    # MagBias, MagTransform = offline_mag_calibration(mag_csv_path)
+    # print("Offline MagBias:", MagBias)
+    # print("Offline MagTransform:", MagTransform)
