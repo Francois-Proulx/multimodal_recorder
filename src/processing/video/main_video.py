@@ -28,5 +28,5 @@ def process_session(session_path):
     
 if __name__ == "__main__":
     # Example session folder
-    session_path = project_file("data", "raw", "multimodal", "session_20251009_144719")
+    session_path = project_file("data", "raw", "multimodal", "session_20251010_185604")
     process_session(session_path)
