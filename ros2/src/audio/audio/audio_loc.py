@@ -15,7 +15,7 @@ class Audio_Loc(Node):
   def __init__(self):
     super().__init__('audio_loc')
     
-    self.declare_parameter('loc_type', 'MUSIC')
+    self.declare_parameter('loc_type', 'SRP-PHAT')
     self.loc_type = self.get_parameter('loc_type').get_parameter_value().string_value
     
     self.subscription = self.create_subscription(AudioRaw,'audio_raw',self.audio_callback,10)
@@ -37,7 +37,7 @@ class Audio_Loc(Node):
     
     msg_pub = AudioLoc()
     msg_pub.time = timestamp
-    msg_pub.doa = 90.0 # copy DOA result here
+    msg_pub.doa = [2.0, -3.0, -30.0] # copy DOA result here
     msg_pub.header.stamp = self.get_clock().now().to_msg()
     self.publisher.publish(msg_pub)
 

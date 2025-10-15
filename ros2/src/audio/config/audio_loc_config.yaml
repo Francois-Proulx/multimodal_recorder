@@ -1,4 +1,4 @@
 /audio_loc:
     ros__parameters:
-        loc_type: 'MUSIC' # can be 'MUSIC' or 'direct'
+        loc_type: 'SRP-PHAT' # can be 'SRP-PHAT' or 'direct'
 

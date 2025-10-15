@@ -5,7 +5,7 @@
         audio_path: '/home/balkce/droneaudition/data/session_20251014_105701/audio/audio.wav'
         device: 'hw:3'
         samplerate: 16000
-        channels: 2
-        blocksize: 1024
+        channels: 16
+        blocksize: 4096
         sampwidth: 4
 
