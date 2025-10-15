@@ -6,7 +6,7 @@ import apriltag
 import csv
 import numpy as np
 
-from src.utils.referential_change import apply_rotation, quaternion_to_euler, rvec_to_quaternion
+from src.utils.referential_change import apply_rotation, quaternion_to_euler, rvec_to_quaternion, rebase_quaternions_to_initial
 
 def reconstruct_video(frames_dir, video_ts_path, output_dir=None, output_filename=None, codec="MJPG"):
     """
@@ -179,17 +179,23 @@ def draw_apritag_pose_axis_in_frame(frame, rvec, tvec, camera_matrix, dist_coeff
     return frame
 
 
+def rvec_to_quat_video(rvec):
+    """Convert rotation vector (Rodrigues) to quaternion (x, y, z, w)."""
+    rvec = rvec.ravel()
+    quat = rvec_to_quaternion(rvec)
+    return quat # returns in (x, y, z, w) format
+
+
+def rebase_quaternions_to_initial_video(quat):
+    """Rebase quaternion sequence so that the first quaternion becomes identity."""
+    return rebase_quaternions_to_initial(quat)
+
+
 def quats_to_euler_video(quat):
     """Convert quaternion to roll, pitch, yaw and unwrap."""
     q1, q2, q3, q4 = quat[0], quat[1], quat[2], quat[3]
     roll, pitch, yaw = quaternion_to_euler(q1,q2,q3,q4)
     return roll, pitch, yaw
-
-
-def rvec_to_quat_video(rvec):
-    """Convert rotation vector (Rodrigues) to quaternion (x, y, z, w)."""
-    quat = rvec_to_quaternion(rvec)
-    return quat # returns in (x, y, z, w) format
 
 
 def process_apriltag_video(video_path, video_ts_path, tag_family, tag_size, camera_matrix, dist_coeffs, save_new_video = True, output_dir=None, output_filename=None, codec="MJPG"):
@@ -234,7 +240,6 @@ def process_apriltag_video(video_path, video_ts_path, tag_family, tag_size, came
     
     # Initialize output vectors and video writer
     quats = np.zeros((len(timestamps), 4), dtype=np.float32)   # x, y, z, w
-    eulers = np.zeros((len(timestamps), 3), dtype=np.float32)  # roll, pitch, yaw
     writer = None
 
     # Process each frame
@@ -246,21 +251,21 @@ def process_apriltag_video(video_path, video_ts_path, tag_family, tag_size, came
         tags = detect_apriltags_in_frame(detector, frame)
 
         if len(tags) > 0:
+            # print(f"Frame {idx}: Detected {len(tags)} tags")
             tag = tags[0]  # assuming one fixed tag
             success, rvec, tvec = estimate_apriltag_pose_in_frame(tag, tag_size, camera_matrix, dist_coeffs)
             if success:
+                # print(f"  Tag ID: {tag.tag_id}, tvec: {tvec.ravel()}, rvec: {rvec.ravel()}")
                 quats[idx,:] = rvec_to_quat_video(rvec)
-                eulers[idx,:] = quats_to_euler_video(quats[idx,:])
             else:
                 quats[idx,:] = np.nan
-                eulers[idx,:] = np.nan
             
             if save_new_video:
                 frame = draw_apritag_pose_axis_in_frame(frame, rvec, tvec, camera_matrix, dist_coeffs, tag_size)
         
         else:
+            # print(f"Frame {idx}: No tags detected")
             quats[idx,:] = np.nan
-            eulers[idx,:] = np.nan
 
         if save_new_video:
             if writer is None:
@@ -271,4 +276,4 @@ def process_apriltag_video(video_path, video_ts_path, tag_family, tag_size, came
     cap.release()
     if writer: writer.release()
     if save_new_video: print(f"Video saved at {output_path} (fps ~{fps:.2f})")
-    return quats, eulers, timestamps
+    return quats, timestamps
