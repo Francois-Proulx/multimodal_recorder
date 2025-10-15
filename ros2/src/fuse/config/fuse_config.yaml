@@ -1,0 +1,4 @@
+/imu_adq:
+    ros__parameters:
+        fuse_method: 'sync' # can be 'sync' or 'async'
+

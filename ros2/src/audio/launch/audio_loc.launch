@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="audio" name="audio_loc" exec="audio_loc" output="screen">
+    <param from="$(find-pkg-share audio)/config/audio_loc_config.yaml" />
+  </node>
+</launch>

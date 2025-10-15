@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="imu" name="imu_adq" exec="imu_adq" output="screen">
+    <param from="$(find-pkg-share imu)/config/imu_adq_config.yaml" />
+  </node>
+</launch>

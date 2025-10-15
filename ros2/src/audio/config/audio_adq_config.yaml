@@ -1,0 +1,11 @@
+/audio_adq:
+    ros__parameters:
+        operation_mode: 'csv' # can be 'csv' or 'rt'
+        csv_path: '/home/balkce/droneaudition/data/session_20251014_105701/audio/audio_timestamps.csv'
+        audio_path: '/home/balkce/droneaudition/data/session_20251014_105701/audio/audio.wav'
+        device: 'hw:3'
+        samplerate: 16000
+        channels: 2
+        blocksize: 1024
+        sampwidth: 4
+

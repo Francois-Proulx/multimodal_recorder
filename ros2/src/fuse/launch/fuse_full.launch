@@ -1,0 +1,23 @@
+<launch>
+  <node pkg="audio" name="audio_adq" exec="audio_adq" output="screen">
+    <param from="$(find-pkg-share audio)/config/audio_adq_config.yaml" />
+  </node>
+  <node pkg="audio" name="audio_loc" exec="audio_loc" output="screen">
+    <param from="$(find-pkg-share audio)/config/audio_loc_config.yaml" />
+  </node>
+  <node pkg="imu" name="imu_adq" exec="imu_adq" output="screen">
+    <param from="$(find-pkg-share imu)/config/imu_adq_config.yaml" />
+  </node>
+  <node pkg="imu" name="imu_quat" exec="imu_quat" output="screen">
+    <param from="$(find-pkg-share imu)/config/imu_quat_config.yaml" />
+  </node>
+  <node pkg="video" name="video_adq" exec="video_adq" output="screen">
+    <param from="$(find-pkg-share video)/config/video_adq_config.yaml" />
+  </node>
+  <node pkg="video" name="video_quat" exec="video_quat" output="screen">
+    <param from="$(find-pkg-share video)/config/video_quat_config.yaml" />
+  </node>
+  <node pkg="fuse" name="fuse" exec="fuse" output="screen">
+    <param from="$(find-pkg-share fuse)/config/fuse_config.yaml" />
+  </node>
+</launch>

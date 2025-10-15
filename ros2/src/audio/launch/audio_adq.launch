@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="audio" name="audio_adq" exec="audio_adq" output="screen">
+    <param from="$(find-pkg-share audio)/config/audio_adq_config.yaml" />
+  </node>
+</launch>

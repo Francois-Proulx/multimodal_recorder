@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="video" name="video_quat" exec="video_quat" output="screen">
+    <param from="$(find-pkg-share video)/config/video_quat_config.yaml" />
+  </node>
+</launch>

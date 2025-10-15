@@ -1,0 +1,4 @@
+/video_quat:
+    ros__parameters:
+        loc_type: 'apriltag' # can be 'apriltag' or 'sift'
+
