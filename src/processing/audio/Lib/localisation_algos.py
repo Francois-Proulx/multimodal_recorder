@@ -1074,14 +1074,17 @@ def DOAs_coordinate_from_DOAs_id(DOAs_id, spherical_grid):
 
     return DOAs_coordinates
 
-def DOAs_from_DOAs_coordinates(DOAs_coordinates):
+def DOAs_from_DOAs_coordinates(DOAs_coordinates, center_around_zero=False):
     '''
     Convert Cartesian coordinates (x, y, z) to spherical angles (theta, phi) in degrees.
 
     Args:
         DOAs_coordinates (np.array): 
             Detected peak coordinates (x, y, z) for each frame [nb_of_frames, 3]
-
+        center_around_zero (bool, optional): 
+            If True, theta (azimuth) is normalized to [-180, 180] degrees.
+            If False (default), theta is normalized to [0, 360] degrees.
+            
     Returns:
         DOAs (np.ndarray):
             Detected DOAs (theta, phi) in degrees [nb_of_frames, 2]
@@ -1098,8 +1101,13 @@ def DOAs_from_DOAs_coordinates(DOAs_coordinates):
     theta_deg = np.degrees(theta)
     phi_deg = np.degrees(phi)
 
-    # Adjust theta to range from 0 to 360 degrees
-    theta_deg = np.where(theta_deg < 0, theta_deg + 360, theta_deg)
+    # Normalize azimuth angle
+    if center_around_zero:
+        # Adjust theta to range from -180 to 180 degrees
+        theta_deg = np.where(theta_deg > 180, theta_deg - 360, theta_deg)
+    else:
+        # Adjust theta to range from 0 to 360 degrees
+        theta_deg = np.where(theta_deg < 0, theta_deg + 360, theta_deg)
 
     DOAs = np.vstack((theta_deg, phi_deg)).T
     return DOAs

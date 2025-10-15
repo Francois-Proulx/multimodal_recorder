@@ -77,9 +77,23 @@ def euler_to_quaternion(roll, pitch, yaw, degrees=True):
 
 ##### Quaternion interpolation and rebasing #####
 def interpolate_quaternions(quat, timestamps, new_timestamps):
-    """Interpolate quaternion sequence to new timestamps."""
+    """
+    Interpolate quaternion sequence to new timestamps.
+    Is NaN-safe as it forward-fill missing quaternions.
+    """
+    quat_filled = quat.copy()
+    
+    # fill first frame if NaN
+    if np.isnan(quat_filled[0]).any():
+        quat_filled[0] = np.array([0,0,0,1])  # identity quaternion
+    
+    # forward-fill remaining NaNs
+    for i in range(1, len(quat_filled)):
+        if np.isnan(quat_filled[i]).any():
+            quat_filled[i] = quat_filled[i-1]
+            
     # Convert quaternions to Rotation objects
-    r = R.from_quat(quat)
+    r = R.from_quat(quat_filled)
     
     # Create SLERP object
     slerp = Slerp(timestamps, r)
@@ -92,10 +106,29 @@ def interpolate_quaternions(quat, timestamps, new_timestamps):
 
 def rebase_quaternions_to_initial(quat):
     """
-    Rebase quaternion sequence so that the first quaternion becomes identity.
+    Rebase quaternion sequence so that the first (non NaN) quaternion becomes identity.
     This makes all rotations relative to the initial orientation.
+    Is NaN-safe as it forward-fill missing quaternions.
     """
-    r = R.from_quat(quat)
+    quat_filled = quat.copy()
+    
+    # Find first valid quaternion
+    valid_idx = np.where(~np.isnan(quat_filled).any(axis=1))[0]
+    if len(valid_idx) == 0:
+        raise ValueError("All quaternions are NaN")
+    
+    first_valid_idx = valid_idx[0]
+    first_valid_quat = quat_filled[first_valid_idx]
+
+    # Fill all frames before first valid with first valid quaternion
+    quat_filled[:first_valid_idx+1] = first_valid_quat
+    
+    # forward-fill remaining NaNs
+    for i in range(first_valid_idx+1, len(quat_filled)):
+        if np.isnan(quat_filled[i]).any():
+            quat_filled[i] = quat_filled[i-1]
+            
+    r = R.from_quat(quat_filled)
     r0_inv = r[0].inv()
     r_rebased = r0_inv * r  # equivalent to R_rel = R0.T * R
     return r_rebased.as_quat()
@@ -103,6 +136,7 @@ def rebase_quaternions_to_initial(quat):
 
 def rvec_to_quaternion(rvec):
     """Convert rotation vector (Rodrigues) to quaternion (x, y, z, w)."""
+    rvec = np.atleast_1d(rvec).reshape(-1, 3)
     rotation = R.from_rotvec(rvec)
     return rotation.as_quat()  # returns in (x, y, z, w) format
 

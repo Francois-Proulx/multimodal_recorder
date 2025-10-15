@@ -50,7 +50,7 @@ def localise_audio(file_path, mic_path, save_path=None, FRAME_SIZE_MS = 32, HOP_
     SRP_trad, _ = SRP_PHAT_trad(YYs, TDOAs_scan, f)
     DOAs_id_trad = DOAs_id_from_SRP(SRP_trad)
     DOAs_coord_trad = DOAs_coordinate_from_DOAs_id(DOAs_id_trad, scan_grid)
-    DOAs_trad = DOAs_from_DOAs_coordinates(DOAs_coord_trad)
+    DOAs_trad = DOAs_from_DOAs_coordinates(DOAs_coord_trad, center_around_zero=True)
 
     return t, DOAs_trad, DOAs_coord_trad
 
