@@ -33,9 +33,9 @@ class Fuse(Node):
     
   def audio_callback(self,msg):
     timestamp = msg.time
-    audio_doa = msg.doa
+    audio_pos = msg.pos
     
-    self.get_logger().info("Aud: "+str(audio_doa))
+    self.get_logger().info("Aud: "+str(audio_pos))
     
   def video_callback(self,msg):
     timestamp = msg.time

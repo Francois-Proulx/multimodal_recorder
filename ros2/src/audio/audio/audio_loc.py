@@ -32,12 +32,12 @@ class Audio_Loc(Node):
     
     audio_data = np.reshape(data_orig, (winlen,channels), order="F")
     
-    # here do DOA localization with "audio_data",
+    # here do localization with "audio_data",
     # with shape (N,C), N being length, C being channels
     
     msg_pub = AudioLoc()
     msg_pub.time = timestamp
-    msg_pub.doa = [2.0, -3.0, -30.0] # copy DOA result here
+    msg_pub.pos = [2.0, -3.0, -30.0] # copy localization result here
     msg_pub.header.stamp = self.get_clock().now().to_msg()
     self.publisher.publish(msg_pub)
 
