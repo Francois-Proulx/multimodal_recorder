@@ -1,0 +1,4 @@
+/audio_loc:
+    ros__parameters:
+        loc_type: 'MUSIC' # can be 'MUSIC' or 'direct'
+

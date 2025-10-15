@@ -1,0 +1,14 @@
+wheel
+pandas
+smbus
+easydict
+imusensor
+vqf
+soundfile
+sounddevice
+picamera2
+ninja
+rpi-libcamera
+opencv-python
+numpy<2.0
+

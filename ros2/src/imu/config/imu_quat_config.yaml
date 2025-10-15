@@ -1,0 +1,5 @@
+/imu_quat:
+    ros__parameters:
+        quat_type: 'inverse' # can be 'inverse' or 'direct'
+        Ts: 0.01
+

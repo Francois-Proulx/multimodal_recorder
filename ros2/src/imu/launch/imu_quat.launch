@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="imu" name="imu_quat" exec="imu_quat" output="screen">
+    <param from="$(find-pkg-share imu)/config/imu_quat_config.yaml" />
+  </node>
+</launch>

@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="fuse" name="fuse" exec="fuse" output="screen">
+    <param from="$(find-pkg-share fuse)/config/fuse_config.yaml" />
+  </node>
+</launch>
