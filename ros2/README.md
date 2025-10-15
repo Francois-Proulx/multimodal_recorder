@@ -1,8 +1,13 @@
 ## Dependencies
+Install dependencies for nodes:
+```
 sudo apt install libcap-dev libsndfile1-dev libcamera-dev
+```
+
+Install ROS2 following [this guide](https://docs.ros.org/#ros-for-beginners), preferable using the "Tier-1" ROS2-Ubuntu version pairings.
 
 ## Install
-Assume `ROS2Base` is the base directory of the project (both ROS2 workspace and multimodal recorder code).
+Assume `ROS2Base` is the base directory of the project, that has both the ROS2 workspace and the multimodal recorder code (they do not need to be in the same directory, though).
 
 ```
 cd ROS2Base
