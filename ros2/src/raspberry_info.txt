@@ -1,0 +1,71 @@
+192.168.1.1
+255.255.0.0
+
+user: introlab
+pass: introlab
+
+raspberry pi OS, version 2024 >> debian, vesion 12 >> ubuntu, version 22.04 (jammy jellyfish) >> ros2, version humble 
+
+### ROS2 IS NOT AVAILABLE AS NATIVE INSTALL FOR RASPBIAN
+either use docker or install ubuntu 22.04
+  docker is too cumbersome
+  install ubuntu 22.04 for rapsberry pi 4
+    follow instructions from: https://ubuntu.com/download/raspberry-pi
+
+# to disable gui
+sudo systemctl set-default multi-user
+sudo shutdown -r now
+
+To reenable temporarily (till the next reboot only) do:
+sudo systemctl start gdm3
+
+To reenable permanently do:
+sudo systemctl set-default graphical
+
+# install ros2
+install instructions:
+  https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debs.html
+
+steps:
+
+locale  # check for UTF-8
+
+sudo apt update && sudo apt install locales
+sudo locale-gen en_US en_US.UTF-8
+sudo update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8
+export LANG=en_US.UTF-8
+
+locale  # verify settings
+
+sudo apt install software-properties-common
+sudo add-apt-repository universe
+
+sudo apt update && sudo apt install curl
+export ROS_APT_SOURCE_VERSION=$(curl -s https://api.github.com/repos/ros-infrastructure/ros-apt-source/releases/latest | grep -F "tag_name" | awk -F\" '{print $4}')
+curl -L -o /tmp/ros2-apt-source.deb "https://github.com/ros-infrastructure/ros-apt-source/releases/download/${ROS_APT_SOURCE_VERSION}/ros2-apt-source_${ROS_APT_SOURCE_VERSION}.$(. /etc/os-release && echo ${UBUNTU_CODENAME:-${VERSION_CODENAME}})_all.deb"
+sudo dpkg -i /tmp/ros2-apt-source.deb
+
+sudo apt install ros-humble-ros-base
+sudo apt install ros-dev-tools
+sudo apt install ros-humble-cv-bridge
+
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
+
+source /opt/ros/humble/setup.bash
+
+sudo apt install python3-pip
+sudo apt install libcap-dev libsndfile1-dev libcamera-dev libcamera-tools libportaudio2
+
+git clone https://github.com/Francois-Proulx/multimodal_recorder.git
+
+mkdir droneaudition
+cd droneaudition
+ln -s ../multimodal_recorder/ros2/src .
+
+pip install -r src/requirements.txt
+
+colcon build
+
+echo "source /home/introlab/droneaudition/install/local_setup.bash" >> ~/.bashrc
+
+source /home/introlab/droneaudition/install/local_setup.bash
