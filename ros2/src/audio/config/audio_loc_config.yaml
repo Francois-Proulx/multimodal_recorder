@@ -1,4 +1,6 @@
 /audio_loc:
     ros__parameters:
         loc_type: 'SRP-PHAT' # can be 'SRP-PHAT' or 'direct'
-
+        save_path: '/home/francois/Documents/Git/multimodal_recorder/data/raw/multimodal/session_20251014_105701/audio/'
+        filename: 'audio_from_ros.wav'
+        save_audio: True

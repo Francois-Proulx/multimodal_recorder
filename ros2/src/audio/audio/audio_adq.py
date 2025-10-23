@@ -32,9 +32,9 @@ class Audio_Adq(Node):
     self.sampwidth = self.get_parameter('sampwidth').get_parameter_value().integer_value
     
     if self.sampwidth == 2:
-        self.dtype = 'float16'
+        self.dtype = 'int16'
     elif self.sampwidth == 4:
-        self.dtype = 'float32'
+        self.dtype = 'int32'
     else:
         raise ValueError("Unsupported sampwidth. Use 2 or 4.")
     
@@ -68,7 +68,8 @@ class Audio_Adq(Node):
       exit()
     
     if self.audio_path and os.path.exists(self.audio_path):
-      data, fs = sf.read(self.audio_path)
+      data, fs = sf.read(self.audio_path, dtype="float32")
+      self.get_logger().info("max data : "+str(np.max(data))+". min data = "+str(np.min(data)))
     else:
       self.get_logger().info("Audio file not found: "+self.audio_path)
       exit()
@@ -100,14 +101,17 @@ class Audio_Adq(Node):
       t_ini = index*win_len
       t_fin = t_ini+win_len
       
+      # Format data for publishing
+      self.get_logger().info("max data : "+str(np.max(data))+". min data = "+str(np.min(data)))
       this_data = np.reshape(data[t_ini:t_fin,:], win_len*channels, order="F").tolist()
+      self.get_logger().info("max data : "+str(max(this_data))+". min data = "+str(min(this_data)))
       
       self.publish_data(
-        row['timestamp'],
+        float(np.float32(row['timestamp'])),
         this_data,
-        channels,
-        win_len,
-        fs
+        int(np.int32(channels)),
+        int(np.int32(win_len)),
+        int(np.int32(fs))
       )
     self.get_logger().info("Finished publishing CSV and Audio.")
   

@@ -1,5 +1,5 @@
-float64 time
-float64[] data
+float32 time
+float32[] data
 int32 channels
 int32 winlen
 int32 fs

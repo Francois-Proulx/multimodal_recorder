@@ -1,8 +1,8 @@
 /audio_adq:
     ros__parameters:
         operation_mode: 'csv' # can be 'csv' or 'rt'
-        csv_path: '/home/balkce/droneaudition/data/session_20251014_105701/audio/audio_timestamps.csv'
-        audio_path: '/home/balkce/droneaudition/data/session_20251014_105701/audio/audio.wav'
+        csv_path: '/home/francois/Documents/Git/multimodal_recorder/data/raw/multimodal/session_20251014_105701/audio/audio_timestamps.csv'
+        audio_path: '/home/francois/Documents/Git/multimodal_recorder/data/raw/multimodal/session_20251014_105701/audio/audio.wav'
         device: 'hw:3'
         samplerate: 16000
         channels: 16

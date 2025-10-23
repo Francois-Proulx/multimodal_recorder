@@ -9,3 +9,6 @@ data/raw/
 data/processed/
 .vscode/
 configs/calib_images/
+ros2/build/
+ros2/install
+ros2/log
