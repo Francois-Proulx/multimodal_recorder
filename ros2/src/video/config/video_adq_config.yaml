@@ -1,8 +1,9 @@
 /video_adq:
     ros__parameters:
-        operation_mode: 'csv' # can be 'csv' or 'rt'
+        operation_mode: 'rt' # can be 'csv' or 'rt'
         csv_path: '/home/balkce/droneaudition/data/session_20251014_105701/video/video_timestamps.csv'
         video_folder: '/home/balkce/droneaudition/data/session_20251014_105701/video/video_frames'
+        device: 2
         width: 640
         height: 480
         fps: 30

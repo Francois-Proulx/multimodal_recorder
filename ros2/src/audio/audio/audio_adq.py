@@ -119,7 +119,7 @@ class Audio_Adq(Node):
       if status:
           print("AudioProcess status:", status)
       
-      this_data = np.reshape(indata, frames*self.channels, order="F").astype(np.float64).tolist()
+      this_data = np.reshape(indata, frames*self.channels, order="F").tolist()
       
       self.publish_data(
         time.time() - (self.blocksize / self.samplerate),
@@ -137,7 +137,7 @@ class Audio_Adq(Node):
         channels=self.channels,
         samplerate=self.samplerate,
         blocksize=self.blocksize,
-        dtype=self.dtype,
+        dtype='float32',
         callback=self.audio_callback
       ) as stream:
         while True:

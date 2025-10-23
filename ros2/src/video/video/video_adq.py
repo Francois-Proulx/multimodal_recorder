@@ -24,6 +24,8 @@ class Video_Adq(Node):
     self.csv_path = self.get_parameter('csv_path').get_parameter_value().string_value
     self.declare_parameter('video_folder', 'test')
     self.video_folder = self.get_parameter('video_folder').get_parameter_value().string_value
+    self.declare_parameter('device', 0)
+    self.device = self.get_parameter('device').get_parameter_value().integer_value
     self.declare_parameter('width', 640)
     self.width = self.get_parameter('width').get_parameter_value().integer_value
     self.declare_parameter('height', 480)
@@ -87,30 +89,72 @@ class Video_Adq(Node):
       )
     self.get_logger().info("Finished publishing CSV and Audio.")
   
+  def _open_camera(self):
+    """Try opening and configuring the camera, return cap or None on failure."""
+    cap = cv2.VideoCapture(self.device)
+    print('cap is open')
+    # Disable auto exposure
+    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # 1 = manual, 3 = auto
+
+    # Set exposure (unit usually milliseconds or as defined by driver)
+    cap.set(cv2.CAP_PROP_EXPOSURE, 50)
+
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+    cap.set(cv2.CAP_PROP_FPS, self.fps)
+    if cap.isOpened():
+        return cap
+    cap.release()
+    return None
+    
+  def _open_camera_with_timeout(self):
+    """Open the camera in a separate thread and enforce a timeout."""
+    result = {"cap": None}
+
+    def target():
+        result["cap"] = self._open_camera()
+
+    thread = Thread(target=target)
+    thread.start()
+    thread.join(timeout=self.open_timeout)
+    if thread.is_alive():
+        # Camera hang detected
+        return None
+    return result["cap"]
+      
   def from_cam(self):
-    from picamera2 import Picamera2
-    
-    picam2 = Picamera2()
-    config = picam2.create_preview_configuration(main={"size": (self.width, self.height)})
-    picam2.configure(config)
-    picam2.start()
-    
+    """
+    Capture frames from a USB camera and publish as VideoRaw messages.
+    """
+    cap = cv2.VideoCapture(self.device)
+    if not cap.isOpened():
+        self.get_logger().error("Cannot open USB camera")
+        return
+
+    # Set properties
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+    cap.set(cv2.CAP_PROP_FPS, self.fps)
+    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # manual
+    cap.set(cv2.CAP_PROP_EXPOSURE, 50)      # adjust as needed
+
     try:
-      while True:
-        frame = picam2.capture_array()
-        ts = time.time()
-        self.publish_data(
-          ts,
-          frame,
-        )
-        
-        # sleep to ensure desired fps
-        sleep(1 / self.fps)
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                self.get_logger().warn("Frame capture failed, retrying...")
+                continue
+
+            ts = time.time()
+            self.publish_data(ts, frame)
+
+            sleep(1 / self.fps)
+
     except Exception as e:
-      print("VideoProcess error:", e)
+        self.get_logger().error(f"VideoProcess error: {e}")
     finally:
-      picam2.stop()
-      print("VideoProcess stopping")
+        cap.release()
+        self.get_logger().info("VideoProcess stopping")
 
 def main(args=None):
   rclpy.init(args=args)

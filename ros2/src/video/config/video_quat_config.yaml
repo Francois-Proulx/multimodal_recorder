@@ -1,4 +1,6 @@
 /video_quat:
     ros__parameters:
         loc_type: 'apriltag' # can be 'apriltag' or 'sift'
+        save_path: '/home/introlab/multimodal_recorder/data/raw/video/'
+        save_video: True
 
