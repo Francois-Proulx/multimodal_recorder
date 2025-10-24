@@ -106,7 +106,7 @@ class IMU_Adq(Node):
       self.imu.readSensor()
       self.imu.computeOrientation()
       self.publish_data(
-        time.time_ns(),
+        float(time.time()),
         self.imu.AccelVals[0],
         self.imu.AccelVals[1],
         self.imu.AccelVals[2],

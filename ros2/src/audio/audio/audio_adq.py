@@ -107,7 +107,7 @@ class Audio_Adq(Node):
       self.get_logger().info("max data : "+str(max(this_data))+". min data = "+str(min(this_data)))
       
       self.publish_data(
-        float(np.float32(row['timestamp'])),
+        float(np.float64(row['timestamp'])),
         this_data,
         int(np.int32(channels)),
         int(np.int32(win_len)),

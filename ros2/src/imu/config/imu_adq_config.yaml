@@ -1,6 +1,6 @@
 /imu_adq:
     ros__parameters:
-        operation_mode: 'csv' # can be 'csv' or 'rt'
+        operation_mode: 'rt' # can be 'csv' or 'rt'
         csv_path: '/home/balkce/droneaudition/data/session_20251014_105701/imu/imu.csv'
-        calib_path: '/home/balkce/Dropbox/IIMAS/Misc Software Implementations/GitHub Projects/multimodal_recorder/configs/calibMPU9250.json'
+        calib_path: '/home/introlab/multimodal_recorder/configs/calibMPU9250.json'
 

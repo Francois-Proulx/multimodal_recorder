@@ -88,39 +88,6 @@ class Video_Adq(Node):
         img
       )
     self.get_logger().info("Finished publishing CSV and Audio.")
-  
-  def _open_camera(self):
-    """Try opening and configuring the camera, return cap or None on failure."""
-    cap = cv2.VideoCapture(self.device)
-    print('cap is open')
-    # Disable auto exposure
-    cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 1)  # 1 = manual, 3 = auto
-
-    # Set exposure (unit usually milliseconds or as defined by driver)
-    cap.set(cv2.CAP_PROP_EXPOSURE, 50)
-
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-    cap.set(cv2.CAP_PROP_FPS, self.fps)
-    if cap.isOpened():
-        return cap
-    cap.release()
-    return None
-    
-  def _open_camera_with_timeout(self):
-    """Open the camera in a separate thread and enforce a timeout."""
-    result = {"cap": None}
-
-    def target():
-        result["cap"] = self._open_camera()
-
-    thread = Thread(target=target)
-    thread.start()
-    thread.join(timeout=self.open_timeout)
-    if thread.is_alive():
-        # Camera hang detected
-        return None
-    return result["cap"]
       
   def from_cam(self):
     """
