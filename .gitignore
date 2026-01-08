@@ -5,10 +5,10 @@
 venv/
 __pycache__/
 *.pyc
-data/raw/
-data/processed/
+data/
 .vscode/
-configs/calib_images/
+configs/calib_images_picam/
+configs/calib_images_usbcam/
 ros2/build/
 ros2/install
 ros2/log
