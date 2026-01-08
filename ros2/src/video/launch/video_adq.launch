@@ -1,5 +1,0 @@
-<launch>
-  <node pkg="video" name="video_adq" exec="video_adq" output="screen">
-    <param from="$(find-pkg-share video)/config/video_adq_config.yaml" />
-  </node>
-</launch>

@@ -1,0 +1,10 @@
+/video_replay:
+    ros__parameters:
+        csv_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_for_ros/video/video_timestamps.csv'
+        video_folder: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_for_ros/video/video_frames'
+        save_folder: '/home/introlab/multimodal_recorder/data/raw/video/'
+        width: 1280
+        height: 720
+        fps: 30
+        # pixel_format: 'MJPG' # can be 'YUYV' or 'MJPG'
+

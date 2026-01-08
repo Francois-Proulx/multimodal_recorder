@@ -1,0 +1,5 @@
+<launch>
+  <node pkg="video" name="video_replay" exec="video_replay" output="screen">
+    <param from="$(find-pkg-share video)/config/video_replay_config.yaml" />
+  </node>
+</launch>
