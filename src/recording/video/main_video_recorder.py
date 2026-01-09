@@ -4,7 +4,7 @@ from multiprocessing import Manager, Queue
 from src.utils.io import project_file
 
 # Custom imports
-from src.recording.video.video_process import VideoProcess
+from src.recording.video.video_process import USBVideoProcess
 from src.recording.video.video_filewriter import VideoFileWriter
 
 def stop_handler(stop_event, sig, frame):
@@ -28,10 +28,10 @@ def main():
     fps = 30
 
     # Processes
-    video_proc = VideoProcess(frame_queue, stop_event, width=width, height=height, fps=fps)
+    video_proc = USBVideoProcess(frame_queue, stop_event, device=0, width=width, height=height, fps=fps)
     file_writer_proc = VideoFileWriter(frame_queue, stop_event, save_path=save_path, prefix=prefix, fps=fps)
 
-    print("Starting VideoProcess and VideoFileWriter...")
+    print("Starting USBVideoProcess and VideoFileWriter...")
     video_proc.start()
     file_writer_proc.start()
 

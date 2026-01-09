@@ -8,7 +8,7 @@ from src.recording.audio.audio_process import AudioProcess
 from src.recording.audio.audio_filewriter import FileWriterProcess as AudioWriter
 from src.recording.imu.imu_process import IMUProcess
 from src.recording.imu.imu_filewriter import FileWriterProcess as IMUWriter
-from src.recording.video.video_process import VideoProcess
+from src.recording.video.video_process import USBVideoProcess
 from src.recording.video.video_filewriter import VideoFileWriter
 
 def stop_handler(stop_event, sig, frame):
@@ -35,7 +35,7 @@ def main():
     frame_queue = Queue(maxsize=200)
 
     # === Audio ===
-    audio_proc = AudioProcess(audio_queue, stop_event, device='hw:3,0',
+    audio_proc = AudioProcess(audio_queue, stop_event, device='hw:1,0',
                               samplerate=16000, channels=16, blocksize=4096, sampwidth=4)
     audio_writer = AudioWriter(audio_queue, stop_event,
                                save_path=project_file(session_path, "audio"),
@@ -51,7 +51,7 @@ def main():
 
     # === Video ===
     width, height, fps = 640, 480, 30
-    video_proc = VideoProcess(frame_queue, stop_event, width=width, height=height, fps=fps)
+    video_proc = USBVideoProcess(frame_queue, stop_event, width=width, height=height, fps=fps)
     video_writer = VideoFileWriter(frame_queue, stop_event,
                                    save_path=project_file(session_path, "video"),
                                    prefix="video", fps=fps)

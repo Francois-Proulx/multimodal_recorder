@@ -28,7 +28,7 @@ def main():
     channels = 16
     sampwidth = 4  # 2 for 16-bit, or 4 for 32-bit
     block_size = 4096
-    audio_proc = AudioProcess(audio_queue, stop_event, device='hw:3,0', samplerate=samplerate, channels=channels, 
+    audio_proc = AudioProcess(audio_queue, stop_event, device='hw:1,0', samplerate=samplerate, channels=channels, 
                               blocksize=block_size, sampwidth=sampwidth)
     file_writer_proc = FileWriterProcess(audio_queue, stop_event, save_path=save_path,
                                          filename=filename, samplerate=samplerate, channels=channels, sampwidth=sampwidth)
