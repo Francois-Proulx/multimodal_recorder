@@ -1,6 +1,8 @@
+# File: src/imu/config/imu_adq_config.yaml
+
 /imu_adq:
     ros__parameters:
         operation_mode: 'rt' # can be 'csv' or 'rt'
-        csv_path: '/home/balkce/droneaudition/data/session_20251014_105701/imu/imu.csv'
+        csv_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_for_ros/imu/imu.csv'
         calib_path: '/home/introlab/multimodal_recorder/configs/calibMPU9250.json'
 

@@ -1,4 +1,6 @@
-/imu_adq:
+# File: src/fuse/config/fuse_config.yaml
+
+/fuse:
     ros__parameters:
         fuse_method: 'sync' # can be 'sync' or 'async'
 
