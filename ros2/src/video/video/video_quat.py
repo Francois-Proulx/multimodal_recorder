@@ -1,15 +1,11 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
-from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
-
 import os
-import time
-import numpy as np
-
 from queue import Empty
 from multiprocessing import Process, Queue, Event
 import cv2
+import numpy as np
 import csv
 
 
