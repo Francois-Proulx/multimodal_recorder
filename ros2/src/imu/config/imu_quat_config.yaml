@@ -1,7 +1,10 @@
+# File: src/imu/config/imu_quat_config.yaml
+
 /imu_quat:
     ros__parameters:
         quat_type: 'inverse' # can be 'inverse' or 'direct'
         Ts: 0.01
-        save_path: '/home/introlab/multimodal_recorder/data/raw/imu/'
-        save_imu: True
+        save_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_20/imu/'
+        filename: 'imu.csv'
+        save_imu: False
 
