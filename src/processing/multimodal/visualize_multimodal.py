@@ -1,7 +1,10 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_doa_alignement_and_yaw(t, doa_measured, yaw, doa_world, title=None, filename=None):
+
+def plot_doa_alignement_and_yaw(
+    t, doa_measured, yaw, doa_world, title=None, filename=None
+):
     """
     Compare DOA azimuth/elevation before and after IMU alignment.
 
@@ -14,17 +17,17 @@ def plot_doa_alignement_and_yaw(t, doa_measured, yaw, doa_world, title=None, fil
 
     # ---- Azimuth ----
     fig, ax = plt.subplots(figsize=(6, 3))
-    ax.plot(t, doa_measured[:, 0], 'g', label='Mic DOA azimuth')
-    ax.plot(t, yaw, 'b', label='IMU yaw')
-    ax.plot(t, doa_world[:, 0], 'r', label='World DOA azimuth')
+    ax.plot(t, doa_measured[:, 0], "g", label="Mic DOA azimuth")
+    ax.plot(t, yaw, "b", label="IMU yaw")
+    ax.plot(t, doa_world[:, 0], "r", label="World DOA azimuth")
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Azimuth [deg]")
     ax.legend(fontsize=8)
-    ax.grid(True, linestyle=':')
+    ax.grid(True, linestyle=":")
     if title:
         plt.title(title)
     if filename:
-        plt.savefig(filename + "_azimuth.svg", bbox_inches='tight', pad_inches=0.01)
+        plt.savefig(filename + "_azimuth.svg", bbox_inches="tight", pad_inches=0.01)
     else:
         # plt.show()
         pass
@@ -33,21 +36,23 @@ def plot_doa_alignement_and_yaw(t, doa_measured, yaw, doa_world, title=None, fil
     fig, ax = plt.subplots(figsize=(6, 3))
     if title:
         plt.title(title)
-    ax.plot(t, doa_measured[:, 1], 'g', label='Mic DOA elevation')
-    ax.plot(t, yaw, 'b', label='IMU yaw')
-    ax.plot(t, doa_world[:, 1], 'r', label='World DOA elevation')
+    ax.plot(t, doa_measured[:, 1], "g", label="Mic DOA elevation")
+    ax.plot(t, yaw, "b", label="IMU yaw")
+    ax.plot(t, doa_world[:, 1], "r", label="World DOA elevation")
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Elevation [deg]")
     ax.legend(fontsize=8)
-    ax.grid(True, linestyle=':')
+    ax.grid(True, linestyle=":")
     if filename:
-        plt.savefig(filename + "_elevation.svg", bbox_inches='tight', pad_inches=0.01)
+        plt.savefig(filename + "_elevation.svg", bbox_inches="tight", pad_inches=0.01)
     else:
         # plt.show()
         pass
-    
-    
-def plot_doa_and_yaw(t, doa_measured, sensors=None, ids=None, title=None, filename=None):
+
+
+def plot_doa_and_yaw(
+    t, doa_measured, sensors=None, ids=None, title=None, filename=None
+):
     """
     Plot measured DOAs and yaw(s) from one or multiple sensors.
 
@@ -59,43 +64,57 @@ def plot_doa_and_yaw(t, doa_measured, sensors=None, ids=None, title=None, filena
         title (str, optional): Plot title
         filename (str, optional): Base filename to save plots (will add '_azimuth' and '_elevation')
     """
-    if sensors is None: sensors = []
-    if ids is None: ids = [f"Sensor {i+1}" for i in range(len(sensors))]
-    
+    if sensors is None:
+        sensors = []
+    if ids is None:
+        ids = [f"Sensor {i + 1}" for i in range(len(sensors))]
+
     # Azimuth
-    fig, ax = plt.subplots(figsize=(6,3))
-    ax.plot(t, doa_measured[:,0], 'g', label='Mic DOA azimuth')
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.plot(t, doa_measured[:, 0], "g", label="Mic DOA azimuth")
     for sensor, sensor_id in zip(sensors, ids):
         ax.plot(t, sensor, label=f"{sensor_id}")
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Azimuth [deg]")
     ax.legend(fontsize=8)
-    ax.grid(True, linestyle=':')
-    if title: plt.title(title)
-    if filename: plt.savefig(filename + "_azimuth.svg", bbox_inches='tight', pad_inches=0.01)
+    ax.grid(True, linestyle=":")
+    if title:
+        plt.title(title)
+    if filename:
+        plt.savefig(filename + "_azimuth.svg", bbox_inches="tight", pad_inches=0.01)
 
     # Elevation
-    fig, ax = plt.subplots(figsize=(6,3))
-    ax.plot(t, doa_measured[:,1], 'g', label='Mic DOA elevation')
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.plot(t, doa_measured[:, 1], "g", label="Mic DOA elevation")
     for sensor, sensor_id in zip(sensors, ids):
         ax.plot(t, sensor, label=f"{sensor_id}")
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Elevation [deg]")
     ax.legend(fontsize=8)
-    ax.grid(True, linestyle=':')
-    if title: plt.title(title)
-    if filename: plt.savefig(filename + "_elevation.svg", bbox_inches='tight', pad_inches=0.01)
-    
-    
-def plot_doa_world(t, doas_world, doas_ids=None, sensors=None, sensors_ids=None, title=None, filename=None):
+    ax.grid(True, linestyle=":")
+    if title:
+        plt.title(title)
+    if filename:
+        plt.savefig(filename + "_elevation.svg", bbox_inches="tight", pad_inches=0.01)
+
+
+def plot_doa_world(
+    t,
+    doas_world,
+    doas_ids=None,
+    sensors=None,
+    sensors_ids=None,
+    title=None,
+    filename=None,
+):
     """
     Plot DOAs rotated to world frame, optionally comparing multiple sensors.
-    
+
     Args:
         t (np.ndarray): Time vector [s]
         doa_world (np.ndarray): DOA in world frame [azimuth, elevation] in deg
-        doas_world (list or np.ndarray): World DOA(s) [azimuth, elevation] in deg. 
-                                         Can be Nx2 for one DOA, 
+        doas_world (list or np.ndarray): World DOA(s) [azimuth, elevation] in deg.
+                                         Can be Nx2 for one DOA,
                                          or list of Nx2 arrays for multiple DOAs.
         sensors (list of np.ndarray, optional): List of DOA arrays to plot for comparison
         ids (list of str, optional): IDs for sensors
@@ -106,35 +125,97 @@ def plot_doa_world(t, doas_world, doas_ids=None, sensors=None, sensors_ids=None,
     if isinstance(doas_world, np.ndarray) and doas_world.ndim == 2:
         doas_world = [doas_world]
     if doas_ids is None:
-        doas_ids = [f"World DOA {i+1}" for i in range(len(doas_world))]
-    
+        doas_ids = [f"World DOA {i + 1}" for i in range(len(doas_world))]
+
     if sensors is None:
         sensors = []
     if sensors_ids is None:
-        sensors_ids = [f"Sensor {i+1}" for i in range(len(sensors))]
+        sensors_ids = [f"Sensor {i + 1}" for i in range(len(sensors))]
 
     # Azimuth
-    fig, ax = plt.subplots(figsize=(6,3))
+    fig, ax = plt.subplots(figsize=(6, 3))
     for doa, label in zip(doas_world, doas_ids):
-        ax.plot(t, doa[:,0], label=label)
+        ax.plot(t, doa[:, 0], label=label)
     for sensor, sensor_id in zip(sensors, sensors_ids):
         ax.plot(t, sensor, label=f"{sensor_id}")
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Azimuth [deg]")
     ax.legend(fontsize=8)
-    ax.grid(True, linestyle=':')
-    if title: plt.title(title)
-    if filename: plt.savefig(filename + "_world_azimuth.svg", bbox_inches='tight', pad_inches=0.01)
+    ax.grid(True, linestyle=":")
+    if title:
+        plt.title(title)
+    if filename:
+        plt.savefig(
+            filename + "_world_azimuth.svg", bbox_inches="tight", pad_inches=0.01
+        )
 
     # Elevation
-    fig, ax = plt.subplots(figsize=(6,3))
+    fig, ax = plt.subplots(figsize=(6, 3))
     for doa, label in zip(doas_world, doas_ids):
-        ax.plot(t, doa[:,1], label=label)
+        ax.plot(t, doa[:, 1], label=label)
     for s, sensor_id in zip(sensors, sensors_ids):
         ax.plot(t, sensor, label=f"{sensor_id}")
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Elevation [deg]")
     ax.legend(fontsize=8)
-    ax.grid(True, linestyle=':')
-    if title: plt.title(title)
-    if filename: plt.savefig(filename + "_world_elevation.svg", bbox_inches='tight', pad_inches=0.01)
+    ax.grid(True, linestyle=":")
+    if title:
+        plt.title(title)
+    if filename:
+        plt.savefig(
+            filename + "_world_elevation.svg", bbox_inches="tight", pad_inches=0.01
+        )
+
+
+def plot_sensor_drift(t, sensors, sensors_ids=None, title=None, filename=None):
+    """
+    Plots the drift (angle vs. time) of one or multiple sensors.
+    If multiple sensors are given, also plots their drift difference vs. the first sensor.
+
+    Args:
+        t (array): Time vector.
+        sensors (list or np.ndarray): One or more sensor angle arrays (each shape = [N,]).
+        sensors_ids (list of str, optional): Labels for each sensor.
+        title (str, optional): Plot title.
+        filename (str, optional): Base filename for saving figures (without extension).
+    """
+    # Ensure sensors is a list
+    if isinstance(sensors, np.ndarray):
+        sensors = [sensors]
+
+    if sensors_ids is None:
+        sensors_ids = [f"Sensor {i + 1}" for i in range(len(sensors))]
+
+    # --- Plot absolute drift (angles) ---
+    fig, ax = plt.subplots(figsize=(6, 3))
+    for sensor, sensor_id in zip(sensors, sensors_ids):
+        ax.plot(t, sensor, label=f"{sensor_id}")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Angle [deg]")
+    if title:
+        ax.set_title(title)
+    ax.legend(fontsize=8)
+    ax.grid(True, linestyle=":")
+
+    if filename:
+        plt.savefig(filename + "_angles.svg", bbox_inches="tight", pad_inches=0.01)
+
+    # --- If more than one sensor, plot drift difference vs first sensor ---
+    if len(sensors) > 1:
+        ref = sensors[0]
+        fig, ax = plt.subplots(figsize=(6, 3))
+        for sensor, sensor_id in zip(sensors[1:], sensors_ids[1:]):
+            diff = np.unwrap(np.deg2rad(sensor - ref))
+            diff = np.rad2deg(diff)
+            ax.plot(t, diff, label=f"{sensor_id} - {sensors_ids[0]}")
+        ax.set_xlabel("Time [s]")
+        ax.set_ylabel("Δ Angle [deg]")
+        ax.legend(fontsize=8)
+        ax.grid(True, linestyle=":")
+        if title:
+            ax.set_title(f"Drift relative to {sensors_ids[0]}")
+
+        if filename:
+            plt.savefig(
+                filename + "_drift_diff.svg", bbox_inches="tight", pad_inches=0.01
+            )
