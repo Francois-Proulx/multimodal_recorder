@@ -1,0 +1,12 @@
+# File: src/video/config/cam_hardware.yaml
+
+# e-con usb cam parameters : 640x480@30fps, UYVY format (uyvy2rgb)
+# other cam parameters : 640x480@15fps, UYVY format (uyvy2rgb) OU 640x480@30fps, MJPG format (mjpeg2rgb)
+
+/camera_driver:
+    ros__parameters:
+        video_device: "/dev/video0"
+        framerate: 30.0
+        image_width: 640
+        image_height: 480
+        pixel_format: "mjpeg2rgb"

@@ -11,10 +11,15 @@ def generate_launch_description():
     pkg_share = get_package_share_directory("video")
 
     # Config paths
-    usb_cam_config_path = os.path.join(pkg_share, "config", "usb_cam_params.yaml")
+    cam_config_path = os.path.join(pkg_share, "config", "cam_hardware.yaml")
     quat_config_path = os.path.join(pkg_share, "config", "video_quat_config.yaml")
 
-    # --- 2. Launch Arguments ---
+    # --- 2. Calibration Paths ---
+    # Hardcoded for now
+    calibration_file = "usb_cam_calib_params.yaml"
+    calibration_url = "file://" + os.path.join(pkg_share, "config", calibration_file)
+
+    # --- 3. Launch Arguments ---
     # Example: ros2 launch video video_system.launch.py save_video:=True
     save_video_arg = DeclareLaunchArgument(
         "save_video",
@@ -25,7 +30,7 @@ def generate_launch_description():
         ['"', LaunchConfiguration("save_video"), '".lower() == "true"']
     )
 
-    # --- 3. NODES ---
+    # --- 4. NODES ---
 
     # C++ Camera Driver
     usb_cam_node = Node(
@@ -33,10 +38,11 @@ def generate_launch_description():
         executable="usb_cam_node_exe",
         name="camera_driver",
         output="screen",
-        parameters=[usb_cam_config_path],
+        parameters=[cam_config_path, {"camera_info_url": calibration_url}],
         remappings=[
             # Remap the standard usb_cam topic to match what your system expects
-            ("image_raw/compressed", "/video_raw/compressed")
+            ("image_raw/compressed", "/video_raw/compressed"),
+            ("camera_info", "/camera_info"),
         ],
     )
 

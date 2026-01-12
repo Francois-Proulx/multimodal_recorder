@@ -55,6 +55,7 @@ class VideoFileWriter(Process):
 
                         # Save timestamp
                         csv_writer.writerow([frame_count, ts])
+
                         frame_count += 1
 
                     except Empty:
@@ -88,6 +89,7 @@ class Video_Quat(Node):
             self.get_parameter("save_video").get_parameter_value().bool_value
         )
 
+        # ROS2 Publisher and Subscriber
         self.bridge = CvBridge()
         self.publisher = self.create_publisher(Quat, "/video_quat", 20)
 
@@ -109,11 +111,13 @@ class Video_Quat(Node):
         timestamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
 
         # --- OPTION A: FOR SAVING (FAST) ---
-
-        # Optionally save frame
         if self.save_video:
-            # Put raw JPEG bytes into queue
-            self.frame_queue.put_nowait({"bytes": msg.data.data, "ts": timestamp})
+            # Convert ROS array to python bytes
+            try:
+                image_bytes = bytes(msg.data)
+                self.frame_queue.put_nowait({"bytes": image_bytes, "ts": timestamp})
+            except Exception as e:
+                self.get_logger().error(f"Video_Quat saving error: {e}")
 
         # --- OPTION B: FOR PROCESSING (SLOWER) ---
         # Using cv_bridge to decode the jpeg bytes to cv2 image
