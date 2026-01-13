@@ -69,6 +69,8 @@ def generate_launch_description():
             "record",  # ros2 bag record command
             "-s",
             "sqlite3",  # Specify storage format
+            "--max-bag-duration",
+            "60",  # split every 60 seconds
             # --- TOPIC LIST ---
             "/audio_raw",
             "/audio_loc",
