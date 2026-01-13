@@ -1,9 +1,11 @@
+from email.mime import audio
 import rclpy
 from rclpy.node import Node
 import os
 import numpy as np
 import wave
 import csv
+import time
 from multiprocessing import Process, Queue, Event
 from queue import Full
 
@@ -64,12 +66,12 @@ class Audio_Loc(Node):
     def __init__(self):
         super().__init__("audio_loc")
         # Declare parameters with optional default values
+        self.declare_parameter("save_audio", True)
         self.declare_parameter("loc_type", "SRP-PHAT")
         self.declare_parameter(
             "save_path", "/home/francois/Documents/Git/multimodal_recorder/data"
         )
         self.declare_parameter("filename", "output.wav")
-        self.declare_parameter("save_audio", True)
 
         # Load parameters from audio_loc_config.yaml
         self.save_audio = (
@@ -85,9 +87,11 @@ class Audio_Loc(Node):
             self.get_parameter("filename").get_parameter_value().string_value
         )
 
+        # !!!!!!Hardcoded audio params, should place them in config later!!!!
         self.samplerate = 16000
         self.channels = 16
         self.sampwidth = 4
+        self.processing_enabled = True
 
         self.subscription = self.create_subscription(
             AudioRaw, "/audio_raw", self.audio_callback, 20
@@ -111,48 +115,72 @@ class Audio_Loc(Node):
             self.file_writer.start()  # starts the separate process
 
     def audio_callback(self, msg):
+        start_time = time.time()
         timestamp = msg.time
         data_orig = np.array(msg.data)
         channels = msg.channels
         winlen = msg.winlen
-        # fs = msg.fs
+        fs = msg.fs
+        block_time = winlen / fs
 
         audio_data = np.reshape(data_orig, (winlen, channels), order="F")
-        # self.get_logger().info("max data : "+str(np.max(audio_data))+". min data = "+str(np.min(audio_data)))
-        # print(data_orig.shape)
-        # print(winlen)
-        # print(channels)
-        # print(audio_data.shape)
 
+        # 1 --- Save audio data to WAV file if enabled ---
+        if self.save_audio:
+            self.convert_audio_and_save_to_queue(audio_data, msg)
+
+        # 2 --- Audio Localization ---
+        # here do localization with "audio_data",
+        # with shape (N,C), N being length, C being channels
+        if self.processing_enabled:
+            loc_data = self.process_localization(audio_data, winlen, channels, fs)
+        else:
+            loc_data = [0.0, 0.0, 0.0]  # Dummy localization data
+
+        # 3 --- Publish localization result ---
+        self.publish_data(timestamp, loc_data)
+
+        # 4 --- Check if too slow ---
+        proc_time = time.time() - start_time
+        if proc_time > block_time:
+            self.get_logger().warning(
+                f"Processing time {proc_time:.3f}s exceeds block time {block_time:.3f}s"
+            )
+
+    def convert_audio_and_save_to_queue(self, audio_data, msg):
         # Convert float32 to int32 or int16
         if self.sampwidth == 2:
-            # scale float32 [-1,1] to int16 [-32768,32767]
-            audio_data = np.clip(audio_data, -1.0, 1.0) * 32767
+            if audio_data.dtype == np.float32:
+                # scale float32 [-1,1] to int16 [-32768,32767]
+                audio_data = np.clip(audio_data, -1.0, 1.0) * 32767
             audio_data = audio_data.astype(np.int16)
         elif self.sampwidth == 4:
-            # scale float32 [-1,1] to int32 [-2147483648,2147483647]
-            audio_data = np.clip(audio_data, -1.0, 1.0) * 2147483647
+            if audio_data.dtype == np.float32:
+                # scale float32 [-1,1] to int32 [-2147483648,2147483647]
+                audio_data = np.clip(audio_data, -1.0, 1.0) * 2147483647
             audio_data = audio_data.astype(np.int32)
         else:
             raise ValueError("Unsupported sampwidth. Use 2 or 4.")
 
-        # Test to save audio
-        if self.save_audio:
-            try:
-                self.audio_queue.put_nowait(
-                    {"audio": audio_data, "timestamp": msg.time}
-                )
-            except Full:
-                print("Queue full, dropping frame")
+        # Save audio
+        try:
+            self.audio_queue.put_nowait({"audio": audio_data, "timestamp": msg.time})
+        except Full:
+            print("Queue full, dropping frame")
 
-        # here do localization with "audio_data",
-        # with shape (N,C), N being length, C being channels
-
+    def publish_data(self, timestamp, loc_data):
         msg_pub = AudioLoc()
         msg_pub.time = timestamp
-        msg_pub.pos = [2.0, -3.0, -30.0]  # copy localization result here
-        msg_pub.header.stamp = self.get_clock().now().to_msg()
+        msg_pub.pos = loc_data
+        msg_pub.header.stamp = rclpy.time.Time(
+            seconds=timestamp
+        ).to_msg()  # self.get_clock().now().to_msg()
         self.publisher.publish(msg_pub)
+
+    def process_localization(self, audio_data, winlen, channels, fs):
+        # Implement your localization algorithm here
+        loc_data = [0.0, 0.0, 0.0]  # Dummy localization data
+        return loc_data
 
 
 def main(args=None):
