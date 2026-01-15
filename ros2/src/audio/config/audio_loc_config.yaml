@@ -1,8 +1,0 @@
-# File: src/audio/config/audio_loc_config.yaml
-
-/audio_loc:
-    ros__parameters:
-        loc_type: 'SRP-PHAT' # can be 'SRP-PHAT' or 'direct'
-        save_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_20/audio/'
-        filename: 'audio.wav'
-        save_audio: False

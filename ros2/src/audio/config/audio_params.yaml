@@ -1,0 +1,46 @@
+# File: src/audio/config/audio_params.yaml
+
+# --- SHARED CONFIGURATION ---
+# Shared parameters between /audio_adq and /audio_loc
+/**: 
+    ros__parameters:
+        samplerate: 16000
+        channels: 16
+        blocksize: 4096  # Hardware buffer size
+        sampwidth: 4    # bytes per sample (2=int16, 4=int32/float32)
+
+
+# --- NODES CONFIGURATION ---
+/audio_adq:
+    ros__parameters:
+        # # Include shared parameters
+        # <<: *audio_shared_params
+
+        # Specific paramters
+        operation_mode: 'rt' # can be 'csv' or 'rt'
+        csv_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_for_ros/audio/audio_timestamps.csv'
+        audio_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_for_ros/audio/audio.wav'
+        device: 'hw:1,0'
+
+
+/audio_loc:
+    ros__parameters:
+        # # Include shared parameters
+        # <<: *audio_shared_params
+
+        # Specific paramters
+        loc_type: 'SRP-PHAT' # can be 'SRP-PHAT' or 'direct'
+        grid_type: 'fibonacci_half_sphere'  # 'fibonacci_half_sphere' or fibonacci_sphere
+        nb_points: 500
+        mic_array_file: 'half_sphere_array_pos_16mics_clockwise.npy'
+
+        # Save paths
+        save_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_20/audio/'
+        filename: 'audio.wav'
+
+        # Processing settings
+        processing_enabled: True
+        frame_size: 512
+        hop_size: 256
+        nfft: 512
+        
