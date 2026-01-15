@@ -11,8 +11,7 @@ def generate_launch_description():
     pkg_share = get_package_share_directory("audio")
 
     # Config paths
-    audio_adq_config_path = os.path.join(pkg_share, "config", "audio_adq_config.yaml")
-    audio_loc_config_path = os.path.join(pkg_share, "config", "audio_loc_config.yaml")
+    audio_params_path = os.path.join(pkg_share, "config", "audio_params.yaml")
 
     # --- 2. Launch Arguments ---
     # Example: ros2 launch audio audio_system.launch.py save_audio:=True
@@ -33,7 +32,7 @@ def generate_launch_description():
         executable="audio_adq",
         name="audio_adq",
         output="screen",
-        parameters=[audio_adq_config_path],
+        parameters=[audio_params_path],
     )
 
     # Audio Processing Node
@@ -43,7 +42,7 @@ def generate_launch_description():
         name="audio_loc",
         output="screen",
         parameters=[
-            audio_loc_config_path,
+            audio_params_path,
             {"save_audio": save_audio_bool},
             # Add other params here directly or via yaml file
         ],
