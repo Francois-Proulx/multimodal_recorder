@@ -173,6 +173,7 @@ class Audio_Loc(Node):
 
             # Initialize AudioProcessor (which will compute the offline parameters)
             self.get_logger().info("Initializing Audio Processor...")
+            self.get_logger().info(f"Loc type is {self.loc_type}")
             self.audio_processor = AudioProcessor(
                 mic_pos_path=mic_file_path,
                 fs=self.samplerate,

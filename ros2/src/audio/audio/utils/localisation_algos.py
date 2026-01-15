@@ -1,5 +1,4 @@
 import numpy as np
-import matplotlib.pyplot as plt
 import time
 from tqdm import tqdm
 
@@ -1511,14 +1510,14 @@ def GSVD_MUSIC_vec(SCM_YY, SCM_VV, b, nb_of_sources=0, singlevalue_threshold=2):
     P_music = np.sum(P_music_freq, axis=0)  # [nb_of_doas]
     end_time = time.time()
 
-    # print('mat inv (common for both)',mat_inv-start)
-    # print('mat calculation (common for both)',mat_calc-mat_inv)
-    # print('single value decomposition (unique)',sing_val_decomp-mat_calc)
-    # print('projction of qv with itself (unique)',proj_qv-sing_val_decomp)
-    # print('calculation of b (common for both)',b_calc-proj_qv)
-    # print('big matrix calculation (common for both)',big_mat_calc-b_calc)
-    # print('end calculatoin (common for both)',end_time-big_mat_calc)
-    # print('total calculatoin for music',end_time-start)
+    print("mat inv (common for both)", mat_inv - start)
+    print("mat calculation (common for both)", mat_calc - mat_inv)
+    print("single value decomposition (unique)", sing_val_decomp - mat_calc)
+    print("projction of qv with itself (unique)", proj_qv - sing_val_decomp)
+    # print("calculation of b (common for both)", b_calc - proj_qv)
+    # print("big matrix calculation (common for both)", big_mat_calc - b_calc)
+    print("end calculatoin (common for both)", end_time - big_mat_calc)
+    print("total calculatoin for music", end_time - start)
 
     return P_music
 
@@ -1700,7 +1699,7 @@ def shrinkage_diagonal_loading(SCMs, shrinkage_intensity=0.01, eps=1e-6):
             The loaded spatial covariance matrix [nb_of_bins, nb_of_channels, nb_of_channels].
     """
     nb_of_bins, nb_of_channels, _ = SCMs.shape
-    I = np.eye(nb_of_channels)
+    Idendity = np.eye(nb_of_channels)
 
     # Initialize the array to hold the loaded covariance matrices
     loaded_SCM = np.zeros_like(SCMs)
@@ -1708,8 +1707,8 @@ def shrinkage_diagonal_loading(SCMs, shrinkage_intensity=0.01, eps=1e-6):
     for bin_id in range(nb_of_bins):
         SCM = SCMs[bin_id, :, :]
         mean_variance = np.trace(SCM) / nb_of_channels
-        target = mean_variance * I
+        target = mean_variance * Idendity
         regularized_SCM = (1 - shrinkage_intensity) * SCM + shrinkage_intensity * target
-        loaded_SCM[bin_id, :, :] = regularized_SCM + eps * I
+        loaded_SCM[bin_id, :, :] = regularized_SCM + eps * Idendity
 
     return loaded_SCM
