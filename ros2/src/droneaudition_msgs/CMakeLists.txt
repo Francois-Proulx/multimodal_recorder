@@ -13,7 +13,6 @@ set(msg_files
   "msg/AudioRaw.msg"
   "msg/AudioLoc.msg"
   "msg/IMURaw.msg"
-  "msg/Quat.msg"
   "msg/VideoRaw.msg"
 )
 

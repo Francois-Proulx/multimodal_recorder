@@ -96,7 +96,8 @@ class IMU_Adq(Node):
         msg.roll = roll
         msg.pitch = pitch
         msg.yaw = yaw
-        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.stamp.sec = int(timestamp)
+        msg.header.stamp.nanosec = int((timestamp - int(timestamp)) * 1e9)
         self.publisher.publish(msg)
 
     def timer_callback_csv(self):

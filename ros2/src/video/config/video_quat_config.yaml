@@ -6,5 +6,5 @@
         save_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/calibration_test/video/'
         
         # Processing parameters
-        processing_enabled: True
+        processing_enabled: False
         processing_fps: 1 

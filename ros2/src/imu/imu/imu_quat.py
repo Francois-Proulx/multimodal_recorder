@@ -7,7 +7,7 @@ from vqf import VQF
 from queue import Empty
 from multiprocessing import Process, Queue, Event
 from droneaudition_msgs.msg import IMURaw
-from droneaudition_msgs.msg import Quat
+from geometry_msgs.msg import QuaternionStamped
 
 
 class IMUFileWriter(Process):
@@ -87,7 +87,9 @@ class IMU_Quat(Node):
         )
         self.subscription  # prevent unused variable warning
 
-        self.publisher = self.create_publisher(Quat, "/imu_quat", 20)
+        self.publisher = self.create_publisher(
+            QuaternionStamped, "/imu/orientation", 20
+        )
 
         # IMU saving
         if self.save_imu:
@@ -99,27 +101,15 @@ class IMU_Quat(Node):
             self.file_writer.start()
 
     def imu_callback(self, msg):
-        timestamp = msg.time
+        timestamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         acc_arr = np.array([msg.acc])
         gyr_arr = np.array([msg.gyr])
         mag_arr = np.array([msg.mag])
         roll = msg.roll
         pitch = msg.pitch
         yaw = msg.yaw
-        # self.get_logger().info("acc arr size" + str(acc_arr[0]) + str(acc_arr[0, 0]))
 
-        # do quaternion magic here
-        # quat = (self.vqf.updateBatch(gyr_arr, acc_arr, mag_arr))['quat9D']
-        quat = (self.vqf.updateBatch(gyr_arr, acc_arr))["quat6D"]
-        quat = quat[:, [1, 2, 3, 0]]
-
-        msg_pub = Quat()
-        msg_pub.time = timestamp
-        msg_pub.quat = (quat[0, :]).tolist()
-        msg_pub.header.stamp = self.get_clock().now().to_msg()
-        self.publisher.publish(msg_pub)
-
-        # Optionally save imu
+        # --- OPTION A: SAVING RAW IMU DATA ---
         if self.save_imu:
             try:
                 data = {
@@ -140,6 +130,28 @@ class IMU_Quat(Node):
                 self.imu_queue.put_nowait(data)
             except Exception as e:
                 self.get_logger().warn(f"Failed to save IMU data: {e}")
+
+        # --- OPTION B: PROCESS RAW DATA TO GET QUAT ---
+
+        self.vqf.update(gyr_arr[0], acc_arr[0])
+        quat = self.vqf.getQuat6D()  # [w, x, y, z]
+
+        # self.vqf.update(gyr_arr[0], acc_arr[0], mag_arr[0])
+        # quat = self.vqf.getQuat9D()  # [w, x, y, z]
+
+        # Publish data
+        if quat is not None:
+            self.publish_data(quat, msg.header.stamp)
+
+    def publish_data(self, quat, msg_timestamp):
+        msg_pub = QuaternionStamped()
+        msg_pub.header.stamp = msg_timestamp
+        msg_pub.header.frame_id = "imu_link"
+        msg_pub.quaternion.w = float(quat[0])
+        msg_pub.quaternion.x = float(quat[1])
+        msg_pub.quaternion.y = float(quat[2])
+        msg_pub.quaternion.z = float(quat[3])
+        self.publisher.publish(msg_pub)
 
 
 def main(args=None):

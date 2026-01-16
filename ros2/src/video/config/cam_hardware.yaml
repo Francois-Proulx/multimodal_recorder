@@ -6,7 +6,7 @@
 /camera_driver:
     ros__parameters:
         video_device: "/dev/video0"
-        framerate: 30.0
+        framerate: 15.0
         image_width: 640
         image_height: 480
         pixel_format: "mjpeg2rgb"

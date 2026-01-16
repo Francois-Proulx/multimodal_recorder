@@ -1,9 +1,7 @@
 import rclpy
 from rclpy.node import Node
-import os
-import numpy as np
 from droneaudition_msgs.msg import AudioLoc
-from droneaudition_msgs.msg import Quat
+from geometry_msgs.msg import QuaternionStamped
 
 
 class Fuse(Node):
@@ -16,7 +14,7 @@ class Fuse(Node):
         )
 
         self.subscription_imu = self.create_subscription(
-            Quat, "imu_quat", self.imu_callback, 10
+            QuaternionStamped, "/imu/orientation", self.imu_callback, 10
         )
         self.subscription_imu  # prevent unused variable warning
         self.subscription_audio = self.create_subscription(
@@ -24,7 +22,7 @@ class Fuse(Node):
         )
         self.subscription_audio  # prevent unused variable warning
         self.subscription_video = self.create_subscription(
-            Quat, "video_quat", self.video_callback, 10
+            QuaternionStamped, "/video/orientation", self.video_callback, 10
         )
         self.subscription_video  # prevent unused variable warning
 

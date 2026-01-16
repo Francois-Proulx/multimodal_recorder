@@ -164,7 +164,7 @@ class Video_Quat(Node):
     def publish_data(self, quat, msg_timestamp):
         msg_pub = QuaternionStamped()
         msg_pub.header.stamp = msg_timestamp
-        msg_pub.header.frame_id = "imu_link"
+        msg_pub.header.frame_id = "video_link"
         msg_pub.quaternion.w = float(quat[0])
         msg_pub.quaternion.x = float(quat[1])
         msg_pub.quaternion.y = float(quat[2])

@@ -20,7 +20,7 @@
         operation_mode: 'rt' # can be 'csv' or 'rt'
         csv_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_for_ros/audio/audio_timestamps.csv'
         audio_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/session_test_for_ros/audio/audio.wav'
-        device: 'hw:1,0'
+        device: 'hw:2,0'
 
 
 /audio_loc:
@@ -29,7 +29,7 @@
         # <<: *audio_shared_params
 
         # Specific paramters
-        loc_type: 'SRP-PHAT' # can be 'SRP-PHAT' or 'direct'
+        loc_type: 'SVD-PHAT' # can be 'SRP-PHAT' or 'SVD-PHAT'
         grid_type: 'fibonacci_half_sphere'  # 'fibonacci_half_sphere' or fibonacci_sphere
         nb_points: 500
         mic_array_file: 'half_sphere_array_pos_16mics_clockwise.npy'
@@ -39,8 +39,8 @@
         filename: 'audio.wav'
 
         # Processing settings
-        processing_enabled: True
+        processing_enabled: False
         frame_size: 512
-        hop_size: 256
+        hop_size: 512
         nfft: 512
         
