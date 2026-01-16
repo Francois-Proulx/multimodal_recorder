@@ -2,5 +2,9 @@
 
 /video_quat:
     ros__parameters:
-        loc_type: 'apriltag' # can be 'apriltag' or 'sift'
+        model: 'yolo' # pose estimation model 'apriltag' or 'yolo' or ...
         save_path: '/home/introlab/multimodal_recorder/data/raw/multimodal/calibration_test/video/'
+        
+        # Processing parameters
+        processing_enabled: True
+        processing_fps: 1 
