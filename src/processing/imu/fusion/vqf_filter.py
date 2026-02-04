@@ -17,6 +17,4 @@ def run_vqf(Ts, gyro, acc, mag=None, offline=False, params=None):
             out = vqf.updateBatch(gyro, acc)
             quat = out["quat6D"]
 
-    # Change from (w, x, y, z) to (x, y, z, w) for scipy compatibility
-    quat = quat[:, [1, 2, 3, 0]]
     return quat

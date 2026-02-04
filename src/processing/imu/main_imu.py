@@ -1,153 +1,124 @@
-# For debugging
-import sys
-from pathlib import Path
+# src/processing/imu/main_imu.py
 
-sys.path.append(str(Path(__file__).resolve().parents[3]))
+# IO imports
+from src.io.utils import project_file
+from src.io.rosbag import read_bag
+from src.io.dataset import load_imu_data
 
-# Imports
-import numpy as np
-import matplotlib.pyplot as plt
-
-# Custom imports
-from src.utils.io import project_file
-from src.utils.visualize import plot_euler, plot_quat
-from src.processing.imu.utils_imu import (
-    load_imu_data,
-    quats_to_euler_imu,
-    euler_to_rotation_matrices,
-    rebase_quaternions_to_initial_imu,
-)
+# IMU imports
 from src.processing.imu.fusion.vqf_filter import run_vqf
 from src.processing.imu.visualize_imu import plot_raw_imu
 
+# Utils imports
+from src.utils.referential_change import (
+    quaternion_to_euler,
+    rebase_quaternions_to_initial,
+)
+from src.utils.visualize import plot_euler, plot_quat
 
-def estimate_orientation_from_imu_file(
-    imu_file, params=None, offline=False, plot=False, MAG_CALIB_FILE=None
-):
-    """
-    Estimate IMU orientation (rotation matrices, euler angles, quaternions).
-    Returns:
-        quat: np.ndarray [n, 4] (w, x, y, z)
-        roll, pitch, yaw: np.ndarray [n] in degrees
-        timestamps: np.ndarray [n] in seconds
-    """
-
-    acc, gyro, mag, timestamps, Ts = load_imu_data(imu_file)
-    if plot:
-        time = timestamps - timestamps[0]
-        plot_raw_imu(time, acc, gyro, mag)
-
-        # # check initial gyro drift
-        # idx_stationary = np.where(time <= time[0] + 20)[0][-1]
-        # print(idx_stationary)
-        # bias_gyro = gyro[0,:]
-        # drift_gyro = gyro[idx_stationary,:]
-        # gyro = gyro - bias_gyro
-        # print(drift_gyro)
-        # # temporary for debug, should delete!!!!
-        # # gyro[:,2] -= 0.12
-        # plot_raw_imu(time, acc, gyro, mag)
-
-    # Check if mag data is available
-    if np.all(mag == 0):
-        mag = None
-        print("No magnetometer data found, using 6D mode.")
-
-    if MAG_CALIB_FILE:
-        calib = np.load(MAG_CALIB_FILE)
-        MagBias = calib["MagBias"]
-        MagTransform = calib["MagTransform"]
-        mag = (
-            mag - MagBias
-        ) @ MagTransform.T  # Apply hard-iron and soft-iron correction
-
-    mag = None  # *********** here mag=none because mag not well calibrated yet..
-
-    quat, roll, pitch, yaw, timestamps = estimate_orientation_from_imu_data(
-        Ts, timestamps, gyro, acc, mag, offline=offline, params=params, plot=plot
-    )
-
-    return quat, roll, pitch, yaw, timestamps
+# Other imports
+import numpy as np
 
 
-def estimate_orientation_from_imu_data(
-    Ts, timestamps, gyro, acc, mag, offline=False, params=None, plot=False
-):
+def estimate_quat_from_imu_data(timestamps, gyro, acc, mag, offline=False, params=None):
     """
     Estimate IMU orientation (rotation matrices, euler angles, quaternions).
     Inputs:
-        Ts: float, sampling period in seconds
         timestamps: np.ndarray [n] in seconds
         gyro: np.ndarray [n, 3] gyroscope data in rad/s
         acc: np.ndarray [n, 3] accelerometer data in m/s^2
         mag: np.ndarray [n, 3] magnetometer data in uT
         offline: bool, whether to run in offline mode
         params: dict, parameters for the VQF filter
-        plot: bool, whether to plot results
     Returns:
-        quat: np.ndarray [n, 4] (w, x, y, z)
+        quat: np.ndarray [n, 4] (x, y, z, w)
         roll, pitch, yaw: np.ndarray [n] in degrees
         timestamps: np.ndarray [n] in seconds
     """
-    # --- Sensor fusion ---
+    # Ensure inputs are contiguous arrays
+    gyro = np.ascontiguousarray(gyro)
+    acc = np.ascontiguousarray(acc)
+    if mag is not None:
+        mag = np.ascontiguousarray(mag)
+
+    # Estimate average sampling period in seconds
+    Ts = np.mean(timestamps[1:] - timestamps[:-1])
+
+    # quat: np.ndarray [n, 4] (w, x, y, z)
     quat = run_vqf(Ts, gyro, acc, mag, offline=offline, params=params)
-    if offline and plot:
-        plot_quat(quat, title="Quaternions from VQF (offline mode)")
-    elif not offline and plot:
-        plot_quat(quat, title="Quaternions from VQF (online mode)")
 
-    # --- Rebase quaternions to start at identity ---
-    quat = rebase_quaternions_to_initial_imu(quat)
-    if plot:
-        plot_quat(quat, title="Rebased Quaternions")
-
-    # --- Convert to Euler ---
-    roll, pitch, yaw = quats_to_euler_imu(quat)
-    if plot:
-        plot_euler(roll, pitch, yaw)
-
-    return quat, roll, pitch, yaw, timestamps
+    return quat[:, [1, 2, 3, 0]]
 
 
-def visualize_raw_imu(imu_file, MAG_CALIB_FILE=None):
-    acc, gyro, mag, timestamps, Ts = load_imu_data(imu_file)
-    time = timestamps - timestamps[0]
-    if MAG_CALIB_FILE is not None:
-        calib = np.load(MAG_CALIB_FILE)
-        MagBias = calib["MagBias"]
-        MagTransform = calib["MagTransform"]
-        mag = (
-            mag - MagBias
-        ) @ MagTransform.T  # Apply hard-iron and soft-iron correction
-    plot_raw_imu(time, acc, gyro, mag)
+def mag_transform(mag_data, mag_calib_file):
+    calib = np.load(mag_calib_file)
+    MagBias = calib["MagBias"]
+    MagTransform = calib["MagTransform"]
+    mag_data_calib = (
+        mag_data - MagBias
+    ) @ MagTransform.T  # Apply hard-iron and soft-iron correction
+
+    return mag_data_calib
 
 
 if __name__ == "__main__":
-    # Basic visualization
-    # SIG_FILE = project_file("data", "raw","imu","imu_data_20251013_142045.csv")
-    SIG_FILE = project_file(
-        "data", "raw", "multimodal", "session_20251013_131149", "imu", "imu.csv"
-    )
-    MAG_CALIB_FILE = project_file("configs", "imu_mag_calibration_offline.npz")
-    visualize_raw_imu(SIG_FILE, MAG_CALIB_FILE)
-    plt.show()
-    exit()
+    data_source = "bag"  # "bag" or "csv"
+    plot = True
+    use_mag = False
 
-    # Simple test run
-    # # Basic version
+    # Paths
+    bag_dir_path = project_file("data", "raw", "ros_bag", "drone_indoor")
+    bag_name = "rosbag2_2026_01_22-11_22_36"
+    imu_csv_path = project_file(
+        "data", "raw", "multimodal", "session_20251003_152453", "imu", "imu.csv"
+    )
+
+    if data_source == "bag":
+        ####### LOAD DATA FROM ROSBAG #######
+        # Bag path and output path
+        bag_path = project_file(bag_dir_path, bag_name)
+
+        # Read bag
+        bag_data = read_bag(bag_path, layers=["imu_raw"])
+        imu_data = bag_data["imu_raw"]
+        timestamps = imu_data["t"]
+        acc = imu_data["data"][:, 0:3]
+        gyro = imu_data["data"][:, 3:6]
+        mag = imu_data["data"][:, 7:9]
+
+    elif data_source == "csv":
+        ####### LOAD DATA FROM CSV DATASET #######
+        acc, gyro, mag, timestamps = load_imu_data(imu_csv_path)
+
+    ####### ESTIMATION QUATERNIONS FROM RAW IMU #######
+    # Params
+    params = None
     # params = dict(
     #     motionBiasEstEnabled=False,
     #     restBiasEstEnabled=False,
     #     magDistRejectionEnabled=False,
     # )
 
-    # Load raw data from IMU9250
-    SIG_FILE = project_file(
-        "data", "raw", "multimodal", "session_20251003_152453", "imu", "imu.csv"
-    )
-    quat, roll, pitch, yaw = estimate_orientation_from_imu_file(
-        imu_file=SIG_FILE, params=None, offline=False, plot=True
+    if use_mag is None:
+        mag = None
+
+    # Estimate quaterion
+    imu_quat = estimate_quat_from_imu_data(
+        timestamps, gyro, acc, mag, offline=True, params=params
     )
 
-    # --- Rotation matrices ---
-    R = euler_to_rotation_matrices(roll, pitch, yaw)
+    # Rebase quaternions to start at identity
+    quat = rebase_quaternions_to_initial(imu_quat)
+
+    # Quaternions to euler angles
+    roll, pitch, yaw = quaternion_to_euler(
+        imu_quat[:, 0], imu_quat[:, 1], imu_quat[:, 2], imu_quat[:, 3]
+    )
+
+    # Visualization
+    if plot:
+        if mag is None:
+            mag = np.zeros_like(acc)
+        plot_raw_imu(timestamps, acc, gyro, mag)
+        plot_quat(quat, title="Rebased Quaternions")
+        plot_euler(roll, pitch, yaw)
