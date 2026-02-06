@@ -7,16 +7,26 @@ import wave
 import csv
 import time
 from multiprocessing import Process, Queue, Event
-from queue import Full
-from collections import deque
+from queue import Full, Empty
+import queue
+import threading
 from ament_index_python.packages import get_package_share_directory
+from collections import deque
+
+# Messages
 from droneaudition_msgs.msg import AudioRaw
 from droneaudition_msgs.msg import AudioLoc
-
-from .processing import AudioProcessor
-
+from geometry_msgs.msg import QuaternionStamped
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
+
+# Custom imports
+from .processing import (
+    AudioProcessor,
+    get_closest_orientation,
+    get_mic_body_rot_mat,
+    get_body_and_world_doas,
+)
 
 
 class FileWriterProcess(Process):
@@ -26,7 +36,7 @@ class FileWriterProcess(Process):
 
     def __init__(
         self,
-        queue,
+        audio_queue,
         stop_event,
         save_path,
         filename="audio.wav",
@@ -35,7 +45,7 @@ class FileWriterProcess(Process):
         sampwidth=4,
     ):
         super().__init__()
-        self.queue = queue
+        self.queue = audio_queue
         self.stop_event = stop_event
         self.save_path = save_path
         self.filename = filename
@@ -149,9 +159,29 @@ class Audio_Loc(Node):
         self.declare_parameter("nfft", 512)
         self.nfft = self.get_parameter("nfft").get_parameter_value().integer_value
 
+        # Rotation matrix parametesr
+        self.declare_parameter("fixed_roll_offset", 0.0)
+        self.fixed_roll_offset = (
+            self.get_parameter("fixed_roll_offset").get_parameter_value().double_value
+        )
+
+        self.declare_parameter("fixed_pitch_offset", 0.0)
+        self.fixed_pitch_offset = (
+            self.get_parameter("fixed_pitch_offset").get_parameter_value().double_value
+        )
+
+        self.declare_parameter("fixed_yaw_offset", 0.0)
+        self.fixed_yaw_offset = (
+            self.get_parameter("fixed_yaw_offset").get_parameter_value().double_value
+        )
+
         # Subscription and Publisher
         self.subscription = self.create_subscription(
             AudioRaw, "/audio_raw", self.audio_callback, 20
+        )
+
+        self.sub_orientation = self.create_subscription(
+            QuaternionStamped, "/fused/orientation", self.orientation_callback, 20
         )
 
         self.publisher = self.create_publisher(AudioLoc, "/audio_loc", 20)
@@ -159,13 +189,27 @@ class Audio_Loc(Node):
         self.marker_pub = self.create_publisher(Marker, "/audio_marker", 10)
 
         if self.processing_enabled:
-            # Initialize buffer
-            self.audio_buffer = deque()
+            # Initialize Audio buffer
+            self.processing_queue = queue.Queue(maxsize=50)
+
+            # Initialize Orientation buffer
+            self.orientation_buffer = deque(maxlen=300)  # 3 sec buffer
 
             # Initialize audio frame
             self.audio_frame = np.zeros(
                 (self.FRAME_SIZE, self.channels), dtype=np.float32
             )
+
+            # Initialize next expected frame for timestamps stability
+            self.next_expected_timestamp = None
+
+            # Compute Microphone --> Body rotation matrix
+            audio_rot_offset = {
+                "roll": self.fixed_roll_offset,
+                "pitch": self.fixed_pitch_offset,
+                "yaw": self.fixed_yaw_offset,
+            }
+            self.mic_body_rot_mat = get_mic_body_rot_mat(audio_rot_offset)
 
             # Mic array path
             pkg_path = get_package_share_directory("audio")
@@ -187,15 +231,18 @@ class Audio_Loc(Node):
             )
             self.get_logger().info("Audio Processor initialized.")
 
-            # Timer callback
-            self.timer = self.create_timer(0.005, self.processing_loop)
+            # Processing thread
+            self.worker_thread = threading.Thread(
+                target=self.processing_thread, daemon=True
+            )
+            self.worker_thread.start()
 
         if self.save_audio:
             # FileWriter setup
             self.audio_queue = Queue(maxsize=100)
             self.stop_event = Event()
             self.file_writer = FileWriterProcess(
-                queue=self.audio_queue,
+                audio_queue=self.audio_queue,
                 stop_event=self.stop_event,
                 save_path=self.save_path,
                 filename=self.filename,
@@ -209,10 +256,6 @@ class Audio_Loc(Node):
         start_time = time.time()
         timestamp = msg.time
         data_orig = np.array(msg.data)
-        # channels = msg.channels
-        # winlen = msg.winlen
-        # fs = msg.fs
-        # block_time = winlen / self.samplerate
 
         audio_data = np.reshape(data_orig, (self.BLOCKSIZE, self.channels), order="F")
 
@@ -222,13 +265,17 @@ class Audio_Loc(Node):
 
         # 2 --- Put data to audio queue for processing loop ---
         if self.processing_enabled:
-            # add to queue...
-            self.audio_buffer.append((audio_data, timestamp))
+            try:
+                self.processing_queue.put_nowait((audio_data, timestamp))
+            except Full:
+                self.get_logger().warn("Processing Queue Full! Dropping audio frame.")
 
         # 3 --- If no processing, publish dummy localization result ---
         else:
-            loc_data = [0.0, 0.0, 0.0]  # Dummy localization data
-            self.publish_data(timestamp, loc_data)
+            doa_raw = [0.0, 0.0, 0.0]  # Dummy localization data
+            doa_body = [0.0, 0.0, 0.0]  # Dummy localization data
+            doa_world = [0.0, 0.0, 0.0]  # Dummy localization data
+            self.publish_data(timestamp, doa_raw, doa_body, doa_world)
 
         # 4 --- Check if too slow ---
         proc_time = time.time() - start_time
@@ -238,52 +285,91 @@ class Audio_Loc(Node):
                 f"Processing time {proc_time:.3f}s in audio callback exceeds block time {self.BLOCKTIME:.3f}s"
             )
 
-    def processing_loop(self):
-        start_time = time.time()
+    def orientation_callback(self, msg):
+        t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+        q = [msg.quaternion.x, msg.quaternion.y, msg.quaternion.z, msg.quaternion.w]
+        self.orientation_buffer.append((t, q))
 
-        if not self.audio_buffer:
-            return
+    def processing_thread(self):
+        self.get_logger().info("Processing Thread Started.")
 
-        # New data (ex: [4096, 16])
-        new_audio_chunk, chunk_start_timestamp = self.audio_buffer.popleft()
-        num_samples_in_chunk = new_audio_chunk.shape[0]
+        while rclpy.ok():
+            try:
+                new_audio_chunk, chunk_start_timestamp = self.processing_queue.get(
+                    timeout=1.0
+                )
 
-        if num_samples_in_chunk % self.HOP_SIZE != 0:
-            self.get_logger().error(
-                f"CRITICAL: Chunk size {num_samples_in_chunk} is not divisible by Hop {self.HOP_SIZE}. "
-                "Data loss occurring!"
-            )
+            except Empty:
+                continue
 
-        cursor = 0
+            chunk_processing_start_time = time.time()
+            num_samples_in_chunk = new_audio_chunk.shape[0]
+            cursor = 0
 
-        # iterate trough the chunk, and pass frames to audio processing
-        while cursor + self.HOP_SIZE <= num_samples_in_chunk:
-            # 1. Start time of each frame
-            time_offset = cursor / self.samplerate
-            frame_timestamp = chunk_start_timestamp + time_offset
+            if num_samples_in_chunk % self.HOP_SIZE != 0:
+                self.get_logger().error(
+                    f"CRITICAL: Chunk size {num_samples_in_chunk} is not divisible by Hop {self.HOP_SIZE}. "
+                    "Data loss occurring!"
+                )
 
-            # 2. Update audio frame
-            hop_data = new_audio_chunk[cursor : cursor + self.HOP_SIZE, :]
-            self.audio_frame = np.roll(self.audio_frame, -self.HOP_SIZE, axis=0)
-            self.audio_frame[-self.HOP_SIZE :, :] = hop_data
+            if (
+                self.next_expected_timestamp is None
+                or abs(chunk_start_timestamp - self.next_expected_timestamp) > 0.1
+            ):
+                self.next_expected_timestamp = chunk_start_timestamp
 
-            # 3. Process frame
-            loc_data = self.audio_processor.process_frame(
-                self.audio_frame, frame_timestamp
-            )
+            # iterate trough the chunk, and pass frames to audio processing
+            while cursor + self.HOP_SIZE <= num_samples_in_chunk:
+                # # 1. Start time of each frame
+                # time_offset = cursor / self.samplerate
+                # frame_timestamp = chunk_start_timestamp + time_offset
 
-            # 4. Publish message
-            self.publish_data(frame_timestamp, loc_data)
+                # New way: use expected timestamp
+                #
+                frame_timestamp = self.next_expected_timestamp
 
-            # 5. update cursor
-            cursor += self.HOP_SIZE
+                # 2. Update audio frame
+                hop_data = new_audio_chunk[cursor : cursor + self.HOP_SIZE, :]
+                self.audio_frame = np.roll(self.audio_frame, -self.HOP_SIZE, axis=0)
+                self.audio_frame[-self.HOP_SIZE :, :] = hop_data
 
-        # !! DEBUG !! -- Check if too slow ---
-        proc_time = time.time() - start_time
-        if proc_time > self.BLOCKTIME:
-            self.get_logger().warning(
-                f"Processing time {proc_time:.3f}s in processing loop exceeds block time {self.BLOCKTIME:.3f}s"
-            )
+                # !! If necessary, possible to add RMS threshold to prevent silent frames
+
+                # 3. Process frame
+                # Sound Source Localisation
+                doa_raw = self.audio_processor.process_frame(
+                    self.audio_frame, frame_timestamp
+                )
+
+                # Get closest fused quaternion (in time)
+                q_fused = get_closest_orientation(
+                    self.orientation_buffer, frame_timestamp
+                )
+
+                # Get body and world doas coordinates
+                if q_fused is not None:
+                    doa_body, doa_world = get_body_and_world_doas(
+                        doa_raw, self.mic_body_rot_mat, q_fused
+                    )
+                else:
+                    doa_body = [0.0, 0.0, 0.0]
+                    doa_world = [0.0, 0.0, 0.0]
+
+                # 4. Publish message
+                self.publish_data(frame_timestamp, doa_raw, doa_body, doa_world)
+
+                # 5. update cursor
+                cursor += self.HOP_SIZE
+
+                # 6. update next expected timestamp
+                self.next_expected_timestamp += self.HOP_SIZE / self.samplerate
+
+            # !! DEBUG !! -- Check if too slow ---
+            proc_time = time.time() - chunk_processing_start_time
+            if proc_time > self.BLOCKTIME:
+                self.get_logger().warning(
+                    f"Processing time {proc_time:.3f}s in processing loop exceeds block time {self.BLOCKTIME:.3f}s"
+                )
 
     def convert_audio_and_save_to_queue(self, audio_data, msg):
         # Convert float32 to int32 or int16
@@ -306,19 +392,19 @@ class Audio_Loc(Node):
         except Full:
             print("Queue full, dropping frame")
 
-    def publish_data(self, timestamp, loc_data):
+    def publish_data(self, timestamp, doa_raw, doa_body, doa_world):
         msg_pub = AudioLoc()
         msg_pub.time = timestamp
-        msg_pub.pos = loc_data
+        msg_pub.doa_raw = doa_raw
+        msg_pub.doa_body = doa_body
+        msg_pub.doa_world = doa_world
         msg_pub.header.frame_id = "microphone_base"
-        msg_pub.header.stamp = rclpy.time.Time(
-            seconds=timestamp
-        ).to_msg()  # self.get_clock().now().to_msg()
+        msg_pub.header.stamp = rclpy.time.Time(seconds=timestamp).to_msg()
         self.publisher.publish(msg_pub)
 
         # 2. Publish the Visual Marker (The Arrow)
         ros_time = rclpy.time.Time(seconds=timestamp).to_msg()
-        self.publish_marker(loc_data, ros_time, "microphone_base")
+        self.publish_marker(doa_raw, ros_time, "microphone_base")
 
     def publish_marker(self, vector, ros_time, frame_id):
         marker = Marker()
@@ -356,7 +442,6 @@ class Audio_Loc(Node):
 def main(args=None):
     rclpy.init(args=args)
     audioloc = Audio_Loc()
-
     executor = MultiThreadedExecutor()
     executor.add_node(audioloc)
 

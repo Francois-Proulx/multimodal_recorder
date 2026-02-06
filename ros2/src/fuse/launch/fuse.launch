@@ -1,5 +1,7 @@
 <launch>
+  <arg name="use_sim_time" default="false" description="Use simulation clock if true"/>
   <node pkg="fuse" name="fuse" exec="fuse" output="screen">
     <param from="$(find-pkg-share fuse)/config/fuse_config.yaml" />
+    <param name="use_sim_time" value="$(var use_sim_time)" />
   </node>
 </launch>

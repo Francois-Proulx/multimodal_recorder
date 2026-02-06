@@ -1,12 +1,16 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
+from sensor_msgs.msg import Image
+from sensor_msgs.msg import CameraInfo
+from geometry_msgs.msg import PoseStamped
+
 import os
+import numpy as np
 from queue import Empty
 from multiprocessing import Process, Queue, Event
 import csv
 
-from geometry_msgs.msg import QuaternionStamped
 from cv_bridge import CvBridge
 from .video_processor import VideoProcessor
 
@@ -99,13 +103,17 @@ class Video_Quat(Node):
 
         # ROS2 Publisher and Subscriber
         self.bridge = CvBridge()
-        self.publisher = self.create_publisher(
-            QuaternionStamped, "/video/orientation", 20
-        )
+        self.publisher = self.create_publisher(PoseStamped, "/video/orientation", 20)
 
         self.subscription = self.create_subscription(
             CompressedImage, "/video_raw/compressed", self.video_callback, 10
         )
+
+        self.sub_cam_info = self.create_subscription(
+            CameraInfo, "/camera_info", self.info_callback, 10
+        )
+
+        self.debug_pub = self.create_publisher(Image, "/video/debug", 10)
 
         # Setup Multiprocessing Writer
         if self.save_video:
@@ -119,8 +127,24 @@ class Video_Quat(Node):
         # Initialize process time
         self.video_processor = VideoProcessor()
         self.last_process_time = 0.0
+        self.camera_matrix = None
+        self.dist_coeffs = None
+
+    def info_callback(self, msg):
+        if self.camera_matrix is None:
+            self.get_logger().info("Received Camera Calibration")
+            self.camera_matrix = np.array(msg.k).reshape((3, 3))
+            self.dist_coeffs = np.array(msg.d)
+            self.destroy_subscription(self.sub_cam_info)
 
     def video_callback(self, msg):
+        # Dont run until calibration info
+        if self.camera_matrix is None:
+            self.get_logger().warn(
+                "Waiting for camera_info...", throttle_duration_sec=2
+            )
+            return
+
         # 1. EXTRACT TIMESTAMP (Standard ROS Header)
         timestamp = rclpy.time.Time.from_msg(msg.header.stamp).nanoseconds * 1e-9
 
@@ -149,26 +173,49 @@ class Video_Quat(Node):
                 # -------------------------------
                 # Process image to compute quaternion
                 # CALL OTHER PYTHON FUNCTION CONTAINING LIGHT YOLO MODEL
-                quat = self.video_processor.detect_pose(img_data)
+                quat, tvec, debug_img, roll, pitch, yaw = (
+                    self.video_processor.detect_pose(
+                        img_data, self.camera_matrix, self.dist_coeffs
+                    )
+                )
                 # -------------------------------
             else:
-                quat = [0.0, 1.0, 0.0, 0.0]
+                quat = None
+                tvec = None
+                debug_img = None
+                roll = None
+                pitch = None
+                yaw = None
 
             # Publish data
-            if quat:
+            if quat is not None and tvec is not None:
                 self.get_logger().info("Publishing frame.")
-                self.publish_data(quat, msg.header.stamp)
+                self.publish_data(quat, tvec, msg.header.stamp)
+                self.get_logger().info(f"Roll: {roll}, Pitch: {pitch}, Yaw: {yaw}")
+
+            if debug_img is not None:
+                if len(debug_img.shape) == 2:
+                    encoding = "mono8"
+                else:
+                    encoding = "bgr8"
+
+                debug_msg = self.bridge.cv2_to_imgmsg(debug_img, encoding=encoding)
+                debug_msg.header = msg.header
+                self.debug_pub.publish(debug_msg)
 
             self.last_process_time = current_time
 
-    def publish_data(self, quat, msg_timestamp):
-        msg_pub = QuaternionStamped()
+    def publish_data(self, quat, tvec, msg_timestamp):
+        msg_pub = PoseStamped()
         msg_pub.header.stamp = msg_timestamp
         msg_pub.header.frame_id = "video_link"
-        msg_pub.quaternion.w = float(quat[0])
-        msg_pub.quaternion.x = float(quat[1])
-        msg_pub.quaternion.y = float(quat[2])
-        msg_pub.quaternion.z = float(quat[3])
+        msg_pub.pose.orientation.w = float(quat[0])
+        msg_pub.pose.orientation.x = float(quat[1])
+        msg_pub.pose.orientation.y = float(quat[2])
+        msg_pub.pose.orientation.z = float(quat[3])
+        msg_pub.pose.position.x = float(tvec[0][0])
+        msg_pub.pose.position.y = float(tvec[1][0])
+        msg_pub.pose.position.z = float(tvec[2][0])
         self.publisher.publish(msg_pub)
 
 

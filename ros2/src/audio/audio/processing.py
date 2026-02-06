@@ -1,4 +1,5 @@
 import numpy as np
+from scipy.spatial.transform import Rotation as R_scipy
 from .utils.grid_and_tdoas import (
     fibonacci_half_sphere,
     fibonacci_sphere,
@@ -152,3 +153,57 @@ class AudioProcessor:
         self.D, self.Vh_k = SVD_PHAT_offline(self.TDOAs_candidates, self.f, delta=0.01)
 
         self.triu_indices = np.triu_indices(self.nb_of_channels, k=1)
+
+
+def get_mic_body_rot_mat(audio_rot_params):
+    # 1. Flip:
+    # From: Mic frame (z+ towards ground)
+    # To: Body frame (z+ towards sky)
+    r_flip = R_scipy.from_euler("x", 180, degrees=True)
+
+    # 2. Static offset (mounting missalignment between array and imu)
+    r_offset = R_scipy.from_euler(
+        "xyz",
+        [audio_rot_params["roll"], audio_rot_params["pitch"], audio_rot_params["yaw"]],
+        degrees=True,
+    )
+
+    # 3. Combined Rotation
+    r_total = r_offset * r_flip
+
+    return r_total.as_matrix()
+
+
+def get_closest_orientation(orientation_buffer, target_time):
+    if not orientation_buffer:
+        return None
+
+    closest_q = None
+    min_diff = 1.0
+
+    for t, q in orientation_buffer:
+        diff = abs(t - target_time)
+        if diff < min_diff:
+            closest_q = q
+            min_diff = diff
+
+    if min_diff > 0.5:
+        return None
+
+    return closest_q
+
+
+def get_body_and_world_doas(doa_raw, rot_mat_mic_to_body, q_body_to_world):
+    """
+    Transforms a single DOA vector through the chain.
+    """
+    doa_raw = np.array(doa_raw)
+    # 1. Apply Static Calibration (Mic -> Body)
+    r_static = R_scipy.from_matrix(rot_mat_mic_to_body)
+    doa_body = r_static.apply(doa_raw)
+
+    # 2. Apply Dynamic Stabilization (Body -> World)
+    r_dynamic = R_scipy.from_quat(q_body_to_world)
+    doa_world = r_dynamic.apply(doa_body)
+
+    return doa_body.tolist(), doa_world.tolist()

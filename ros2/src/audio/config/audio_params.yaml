@@ -39,8 +39,13 @@
         filename: 'audio.wav'
 
         # Processing settings
-        processing_enabled: False
+        processing_enabled: True
         frame_size: 512
         hop_size: 512
         nfft: 512
+
+        # Rotation matrix parameters
+        fixed_roll_offset: -8.97 # [deg]
+        fixed_pitch_offset: 17.31 # [deg]
+        fixed_yaw_offset: -13.63 # [deg]
         

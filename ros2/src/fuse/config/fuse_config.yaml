@@ -2,5 +2,8 @@
 
 /fuse:
     ros__parameters:
-        fuse_method: 'sync' # can be 'sync' or 'async'
+        # IMU SCALING CALIBRATION PARAMETERS
+        imu_scale_pitch: 1.076
+        imu_scale_yaw: 1.007
+        imu_scale_roll: 1.000
 

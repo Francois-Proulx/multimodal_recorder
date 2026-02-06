@@ -66,6 +66,10 @@ class Audio_Adq(Node):
             self.mic_thread = threading.Thread(target=self.from_mic)
             self.mic_thread.start()
 
+            # NEW!! to manage smaller audio chunks
+            self.total_samples_read = 0
+            self.stream_start_time = None
+
     def publish_data(self, timestamp, audio_data, channels, winlen, fs):
         msg = AudioRaw()
         msg.time = timestamp
@@ -149,10 +153,28 @@ class Audio_Adq(Node):
         if status:
             print("AudioProcess status:", status)
 
+        # 1. Initialize Start Time on first callback
+        current_time = time.time()
+        if self.stream_start_time is None:
+            # We assume the first sample happened 'frames' ago
+            self.stream_start_time = current_time - (frames / self.samplerate)
+            self.total_samples_read = 0
+
+        # 2. Calculate Precise Timestamp based on Sample Count
+        # T = T0 + (Total_Samples / Fs)
+        # This is "The time this specific chunk started"
+        chunk_timestamp = self.stream_start_time + (
+            self.total_samples_read / self.samplerate
+        )
+
+        # 3. Update Counter
+        self.total_samples_read += frames
+
+        # 4. Reshape and Publish
         this_data = np.reshape(indata, frames * self.channels, order="F").tolist()
 
         self.publish_data(
-            time.time() - (self.blocksize / self.samplerate),
+            chunk_timestamp,
             this_data,
             self.channels,
             frames,
