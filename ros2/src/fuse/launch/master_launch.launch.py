@@ -71,14 +71,16 @@ def generate_launch_description():
             "sqlite3",  # Specify storage format
             "--max-bag-duration",
             "60",  # split every 60 seconds
-            # --- TOPIC LIST ---
+            # --- RAW TOPIC LIST ---
             "/audio_raw",
-            "/audio_loc",
             "/imu_raw",
-            "/imu/orientation",
             "/video_raw/compressed",
-            "/video/orientation",
             "/camera_info",
+            # --- PROCESSED TOPIC LIST ---
+            "/audio_loc",
+            "/imu/orientation",
+            "/video/orientation",
+            "/fused/orientation",
         ],
         output="screen",
         condition=IfCondition(LaunchConfiguration("record_bag")),
