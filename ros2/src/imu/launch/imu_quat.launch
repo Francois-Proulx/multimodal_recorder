@@ -1,5 +1,7 @@
 <launch>
+  <arg name="use_sim_time" default="false" description="Use simulation clock if true"/>
   <node pkg="imu" name="imu_quat" exec="imu_quat" output="screen">
     <param from="$(find-pkg-share imu)/config/imu_quat_config.yaml" />
+    <param name="use_sim_time" value="$(var use_sim_time)" />
   </node>
 </launch>

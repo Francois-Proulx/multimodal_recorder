@@ -55,7 +55,7 @@ class AudioProcessor:
             print("Precomputing SVD-PHAT")
             self._precompute_svd_phat()  # D, Vh_k
 
-    def process_frame(self, audio_frame, frame_timestamp):
+    def process_frame(self, audio_frame):
         """
         audio_frame: [FRAME_SIZE, NB_OF_CHANNELS] numpy array
         Output: [x, y, z] DOA vector
@@ -181,7 +181,7 @@ def get_closest_orientation(orientation_buffer, target_time):
     closest_q = None
     min_diff = 1.0
 
-    for t, q in orientation_buffer:
+    for t, q in list(orientation_buffer):
         diff = abs(t - target_time)
         if diff < min_diff:
             closest_q = q

@@ -103,7 +103,7 @@ class IMU_Quat(Node):
     def imu_callback(self, msg):
         timestamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
         acc_arr = np.array([msg.acc])
-        gyr_arr = np.array([msg.gyr])
+        gyr_arr = np.array([msg.gyr]) / 4
         mag_arr = np.array([msg.mag])
         roll = msg.roll
         pitch = msg.pitch

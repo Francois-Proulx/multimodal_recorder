@@ -209,10 +209,10 @@ class Video_Quat(Node):
         msg_pub = PoseStamped()
         msg_pub.header.stamp = msg_timestamp
         msg_pub.header.frame_id = "video_link"
-        msg_pub.pose.orientation.w = float(quat[0])
-        msg_pub.pose.orientation.x = float(quat[1])
-        msg_pub.pose.orientation.y = float(quat[2])
-        msg_pub.pose.orientation.z = float(quat[3])
+        msg_pub.pose.orientation.x = float(quat[0])
+        msg_pub.pose.orientation.y = float(quat[1])
+        msg_pub.pose.orientation.z = float(quat[2])
+        msg_pub.pose.orientation.w = float(quat[3])
         msg_pub.pose.position.x = float(tvec[0][0])
         msg_pub.pose.position.y = float(tvec[1][0])
         msg_pub.pose.position.z = float(tvec[2][0])

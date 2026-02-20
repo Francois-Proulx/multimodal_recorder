@@ -99,7 +99,7 @@ class Fuse(Node):
             self.kf.update(
                 closest_vqf,
                 q_vid,
-                video_yaw_static_offset=90.0,
+                video_yaw_static_offset=0.0,
                 video_yaw_scale=-1.0,
             )
 

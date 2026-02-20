@@ -3,6 +3,7 @@
 import cv2
 import numpy as np
 import itertools
+from scipy.spatial.transform import Rotation as R_scipy
 # import torch
 # import torchvision
 
@@ -21,7 +22,7 @@ class VideoProcessor:
         self.no_pts = len(self.OBJECT_POINTS)
         self.max_pt = 8
         self.min_pt = 3
-        self.gray_scale_threshold = 180
+        self.gray_scale_threshold = 100
         self.min_error = 5.0
 
         # Area size
@@ -34,6 +35,11 @@ class VideoProcessor:
         self.max_tilt_deg = 25.0  # deg
 
         self._precompute_indices()
+
+        self.last_rvec = None
+        self.last_tvec = None
+        self.use_temporal_coherence = True
+        self.image_id = 0
 
     def _precompute_indices(self):
         self.permutations = list(itertools.permutations(range(self.no_pts)))
@@ -51,10 +57,8 @@ class VideoProcessor:
         )
 
         if rvec is not None:
-            quat = self.rvec_to_quat(rvec)  # [w, x, y, z]
-            roll, pitch, yaw = self.quaternion_to_euler(
-                quat[1], quat[2], quat[3], quat[0]
-            )
+            quat = self.rvec_to_quat(rvec)  # [x, y, z, w]
+            yaw, pitch, roll = self.quaternion_to_euler(quat)
         else:
             roll = None
             pitch = None
@@ -63,6 +67,7 @@ class VideoProcessor:
         return quat, tvec, debug_img, roll, pitch, yaw
 
     def detect_pose_from_ir_led_img(self, image, camera_matrix, dist_coeffs):
+        self.image_id += 1
         # gray scale
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -74,6 +79,17 @@ class VideoProcessor:
 
         # create copy for debug
         debug_img = image.copy()
+        h, w = debug_img.shape[:2]
+        text = f"ID: {self.image_id}"
+        cv2.putText(
+            debug_img,
+            text,
+            (w - 150, h - 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 255),
+            2,
+        )
 
         # Loop through the light spots, find center, and draw debug image
         candidates = []
@@ -131,15 +147,28 @@ class VideoProcessor:
         )
 
         # PLOT FOR VALIDATION
-        if debug_message != "Success":
+        if debug_message != "Valid":
             if best_img_pts is not None:
-                for pt in best_img_pts:
+                for i, pt in enumerate(best_img_pts):
                     cv2.circle(
                         debug_img,
                         (int(pt[0]), int(pt[1])),
                         5,
                         (0, 0, 255),
                         -1,
+                    )
+                    # Draw the INDEX number (0, 1, 2, 3)
+                    # This tells you exactly how the solver mapped the points.
+                    # 0 = First Point in your OBJECT_POINTS list
+                    # 1 = Second Point, etc.
+                    cv2.putText(
+                        debug_img,
+                        str(i),
+                        (int(pt[0]) + 10, int(pt[1]) - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.8,
+                        (0, 255, 255),
+                        2,
                     )
 
                 err_text = (
@@ -156,6 +185,8 @@ class VideoProcessor:
                     (0, 0, 255),
                     2,
                 )
+            else:
+                print("best img is none")
             return None, None, debug_img
         else:
             cv2.drawFrameAxes(debug_img, camera_matrix, dist_coeffs, rvec, tvec, 0.1)
@@ -187,12 +218,18 @@ class VideoProcessor:
         candidate_points = np.array(
             [c["pt"] for c in image_candidates], dtype="float32"
         )
+        # print(
+        #     f"\n=== [Frame {self.image_id}] Processing {len(image_candidates)} points ==="
+        # )
 
         min_error = float(np.inf)
         best_rvec = None
         best_tvec = None
         best_img_pts = None
+        best_error_msg = "No fit"
+        has_valid_solution = False
         for k in range(self.no_pts, self.min_pt - 1, -1):
+            perm_idx = 0
             # Choose "k" points from candidate points
             # Ex: choose 4 points from 8 candidates
             for subset_img_pts in itertools.combinations(candidate_points, k):
@@ -205,59 +242,88 @@ class VideoProcessor:
 
                     # Blind (brute force) solver PnP on all permutations
                     for perm_img_pts in itertools.permutations(subset_img_pts):
+                        perm_idx += 1
+
                         perm_img_pts = np.array(perm_img_pts, dtype=np.float32)
 
                         # Run PnP
-                        success, rvec, tvec, error, error_msg = self.check_pnp_solution(
-                            subset_model_pts,
-                            perm_img_pts,
-                            camera_matrix,
-                            dist_coeffs,
+                        success, is_valid, rvec, tvec, error, error_msg = (
+                            self.check_pnp_gen_solution(
+                                subset_model_pts,
+                                perm_img_pts,
+                                camera_matrix,
+                                dist_coeffs,
+                            )
                         )
+                        # # --- DEBUG PRINT ---
+                        # status_tag = "VALID" if is_valid else "INVALID (Ghost/Tilt)"
+                        # if success:
+                        #     print(
+                        #         f"[ID {self.image_id}] Perm #{perm_idx} | Pts: {k} | Err: {error:.4f} | {status_tag} | Msg: {error_msg}"
+                        #     )
+                        # else:
+                        #     print(
+                        #         f"[ID {self.image_id}] Perm #{perm_idx} | Pts: {k} | NOT SUCCESS | Msg: {error_msg}"
+                        #     )
+                        # # -------------------
 
                         if success:
-                            return (
-                                rvec,
-                                tvec,
-                                error,
-                                perm_img_pts,
-                                debug_img,
-                                error_msg,
-                                # f"Match found with {k} points",
-                            )
-                        else:
-                            if error is not None:
+                            # If fit is physicaly valid with small error
+                            if is_valid and error < self.min_error:
+                                # If best result or no current best
+                                if not has_valid_solution or error < min_error:
+                                    has_valid_solution = True
+                                    min_error = error
+                                    best_rvec = rvec
+                                    best_tvec = tvec
+                                    best_img_pts = perm_img_pts
+                                    best_error_msg = "Valid"
+
+                            # If not valid and no current best, update best results for debuging
+                            elif not has_valid_solution:
                                 if error < min_error:
                                     min_error = error
                                     best_rvec = rvec
                                     best_tvec = tvec
                                     best_img_pts = perm_img_pts
-                                    best_error_msg = error_msg
+                                    best_error_msg = "Warning_ghost_only"
+
+            # If valid solution after 4 points, no need for 3
+            if has_valid_solution:
+                return (
+                    best_rvec,
+                    best_tvec,
+                    min_error,
+                    best_img_pts,
+                    debug_img,
+                    best_error_msg,
+                )
 
         return best_rvec, best_tvec, min_error, best_img_pts, debug_img, best_error_msg
 
     def check_pnp_solution(self, obj_pts, img_pts, K, D):
+        # --- CHOSE SOLVER ----
+        num_points = len(img_pts)
+        if num_points >= 4:
+            flags = cv2.SOLVEPNP_IPPE
+        else:
+            flags = cv2.SOLVEPNP_SQPNP  # SQPNP is very robust for small point sets
+
+        # --- SOLVE ----
         success, rvec, tvec = cv2.solvePnP(
             obj_pts,
             img_pts,
             K,
             D,
-            flags=cv2.SOLVEPNP_SQPNP,  # SQPNP is very robust for small point sets
+            flags=flags,
         )
 
         if not success:
             return False, None, None, None, "No_fit"
 
-        # Calculate Reprojection Error to see if this match makes sense
-        projected_points, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, D)
-
-        projected_points = projected_points.reshape(-1, 2).astype(np.float32)
-
-        # Calculate average distance between detected points and projected model points
-        total_norm = cv2.norm(img_pts, projected_points, cv2.NORM_L2)
-        error = total_norm / len(img_pts)
-
+        # --- REPROJECTION ERROR FILTER ----
         # Filter outif error is too large
+        error = self.get_reprojection_error(obj_pts, img_pts, K, D, rvec, tvec)
         if error > self.min_error:
             return False, rvec, tvec, error, "Error"
 
@@ -273,77 +339,163 @@ class VideoProcessor:
 
         return True, rvec, tvec, error, "Success"
 
+    def check_pnp_gen_solution(self, obj_pts, img_pts, K, D):
+        # 1. CHOOSE MULTI-SOLUTION SOLVER
+        # if len(img_pts) >= 4:
+        #     # IPPE is best for planar objects and returns both "Flip" solutions
+        #     flags = cv2.SOLVEPNP_IPPE
+        # else:
+        #     # AP3P returns up to 4 solutions for 3 points.
+        #     # (SQPNP only returns 1, so we can't use it here)
+        #     flags = cv2.SOLVEPNP_P3P
+
+        # obj_pts = np.ascontiguousarray(obj_pts, dtype=np.float64).reshape((-1, 1, 3))
+        # img_pts = np.ascontiguousarray(img_pts, dtype=np.float64).reshape((-1, 1, 2))
+
+        # 2. GET ALL CANDIDATES
+        try:
+            if len(img_pts) == 3:
+                n_sols, rvecs, tvecs = cv2.solveP3P(
+                    obj_pts, img_pts, K, D, flags=cv2.SOLVEPNP_AP3P
+                )
+            else:
+                n_sols, rvecs, tvecs, _ = cv2.solvePnPGeneric(
+                    obj_pts, img_pts, K, D, flags=cv2.SOLVEPNP_IPPE
+                )
+        except cv2.error as e:
+            return False, False, None, None, float("inf"), f"Solver_Error: {e.msg}"
+
+        if n_sols == 0 or not rvecs:
+            return False, False, None, None, float("inf"), "No_solution"
+
+        # 3. FILTER CANDIDATES
+        # Loop through ALL solutions and pick the one that is:
+        # A) Physically valid (Tilt < 30 deg)
+        # B) Has the lowest error among the valid ones
+
+        best_valid_rvec = None
+        best_valid_tvec = None
+        best_valid_error = float("inf")
+        found_valid_solution = False
+
+        best_invalid_rvec = None
+        best_invalid_tvec = None
+        best_invalid_error = float("inf")
+        error_msg = None
+
+        # rvecs is a tuple/list of (3,1) arrays
+        for i in range(len(rvecs)):
+            rvec_candidate = rvecs[i]
+            tvec_candidate = tvecs[i]
+
+            # --- Calculate Reprojection Error ---
+            error_candidate = self.get_reprojection_error(
+                obj_pts, img_pts, K, D, rvec_candidate, tvec_candidate
+            )
+
+            # --- Check Physics (Gravity/Tilt) ---
+            # - Orientation
+            # This is the critical step: Reject the 80deg "Ghost" immediately
+            valid_orientation = self.is_valid_orientation(rvec_candidate)
+
+            # - Distance constraints
+            z_dist = tvec_candidate[2][0]
+            valid_distance = self.min_dist <= z_dist <= self.max_dist
+
+            if valid_orientation and valid_distance:
+                if error_candidate < best_valid_error:
+                    best_valid_error = error_candidate
+                    best_valid_rvec = rvec_candidate
+                    best_valid_tvec = tvec_candidate
+                    found_valid_solution = True
+            else:
+                if error_candidate < best_invalid_error:
+                    best_invalid_error = error_candidate
+                    best_invalid_rvec = rvec_candidate
+                    best_invalid_tvec = tvec_candidate
+                    error_msg = f"Ori: {valid_orientation}, Dis: {valid_distance}"
+
+        if found_valid_solution:
+            return (
+                True,
+                True,
+                best_valid_rvec,
+                best_valid_tvec,
+                best_valid_error,
+                f"Valid, tilt: {self.tilt_angle_deg}",
+            )
+
+        # We only found Ghosts. Return the best Ghost (marked as Invalid).
+        return (
+            True,
+            False,
+            best_invalid_rvec,
+            best_invalid_tvec,
+            best_invalid_error,
+            f"Invalid_Physics: {error_msg}, tilt: {self.tilt_angle_deg}",
+        )
+
     def rvec_to_quat(self, rvec):
         """
-        Converts OpenCV rvec (Rodrigues vector) to a Quaternion (w, x, y, z).
+        Converts OpenCV rvec (Rodrigues vector) to a SciPy Quaternion [x, y, z, w].
         """
-        # 1. Get the angle (magnitude of the vector)
-        theta = np.linalg.norm(rvec)
+        # Ensure it's a 1D array (cv2 usually returns shape (3, 1))
+        rot = R_scipy.from_rotvec(rvec.flatten())
 
-        # 2. Handle the edge case (angle is close to 0)
-        if theta < 1e-6:
-            # Return Identity Quaternion (0 rotation)
-            return 1.0, 0.0, 0.0, 0.0
+        # Return standard SciPy format: [x, y, z, w]
+        return rot.as_quat()
 
-        # 3. Calculate terms
-        # Axis = rvec / theta
-        # q = [sin(theta/2) * axis, cos(theta/2)]
-
-        k = np.sin(theta / 2.0) / theta
-
-        w = np.cos(theta / 2.0)
-        x = rvec[0, 0] * k
-        y = rvec[1, 0] * k
-        z = rvec[2, 0] * k
-
-        return [w, x, y, z]
-
-    def quaternion_to_euler(self, x, y, z, w):
+    def quaternion_to_euler(self, quat):
         """
-        Convert quaternions (x, y, z, w) to Euler angles (roll, pitch, yaw) in degrees.
+        Convert quaternions [x, y, z, w] to Euler angles (roll, pitch, yaw) in degrees.
 
         Parameters
         ----------
-        x, y, z, w : array-like
-            Quaternion components (can be scalars or numpy arrays of the same shape)
+        [x, y, z, w] : numpy array
+            Quaternion
 
         Returns
         -------
         roll, pitch, yaw : numpy arrays
             Euler angles in degrees
         """
-        ysqr = y * y
 
-        # Roll (x-axis rotation)
-        t0 = 2.0 * (w * x + y * z)
-        t1 = 1.0 - 2.0 * (x * x + ysqr)
-        roll = np.degrees(np.arctan2(t0, t1))
+        rot_obj = R_scipy.from_quat(quat)
+        euler = rot_obj.as_euler("zyx", degrees=True)
 
-        # Pitch (y-axis rotation)
-        t2 = 2.0 * (w * y - z * x)
-        t2 = np.clip(t2, -1.0, 1.0)  # clip to avoid numerical errors
-        pitch = np.degrees(np.arcsin(t2))
+        if euler.ndim == 1:
+            yaw, pitch, roll = euler[0], euler[1], euler[2]
+        else:
+            yaw = euler[:, 0]
+            pitch = euler[:, 1]
+            roll = euler[:, 2]
 
-        # Yaw (z-axis rotation)
-        t3 = 2.0 * (w * z + x * y)
-        t4 = 1.0 - 2.0 * (ysqr + z * z)
-        yaw = np.degrees(np.arctan2(t3, t4))
+        return yaw, pitch, roll
 
-        return roll, pitch, yaw
+    def get_reprojection_error(self, obj_pts, img_pts, K, D, rvec, tvec):
+        projected_points, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, D)
+
+        projected_points = projected_points.reshape(-1, 2).astype(np.float32)
+
+        # Calculate average distance between detected points and projected model points
+        total_norm = cv2.norm(img_pts, projected_points, cv2.NORM_L2)
+        error = total_norm / len(img_pts)
+        return error
 
     def is_valid_orientation(self, rvec):
-        # quat = self.rvec_to_quat(rvec)  # [w, x, y, z]
-        # roll, pitch, _ = self.quaternion_to_euler(quat[1], quat[2], quat[3], quat[0])
-        # if np.abs(roll) > self.max_tilt_deg or np.abs(pitch) > self.max_tilt_deg:
-        #     print(f"DEBUG: Roll={roll:.1f}, Pitch={pitch:.1f}")
-        #     return False
-        # else:
-        #     return True
+        rot_obj = R_scipy.from_rotvec(rvec.flatten())
 
-        R, _ = cv2.Rodrigues(rvec)
-        # abs to accept -z and +z for upside down solutions
-        self.tilt_angle_deg = np.degrees(np.arccos(np.abs(R[2, 2])))
+        # 1: Filter out tilt angle (accept updisde down solutions)
+        R_mat = rot_obj.as_matrix()
+        self.tilt_angle_deg = np.degrees(np.arccos(np.abs(R_mat[2, 2])))
+
         if self.tilt_angle_deg > self.max_tilt_deg:
+            return False
+
+        # 2: Filter out upside down solutions
+        # (not sure here... to test)
+        _, _, roll = rot_obj.as_euler("zyx", degrees=True)
+        if np.abs(roll) > 90:
             return False
 
         return True

@@ -286,9 +286,10 @@ class Audio_Loc(Node):
             )
 
     def orientation_callback(self, msg):
-        t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
-        q = [msg.quaternion.x, msg.quaternion.y, msg.quaternion.z, msg.quaternion.w]
-        self.orientation_buffer.append((t, q))
+        if self.processing_enabled:
+            t = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+            q = [msg.quaternion.x, msg.quaternion.y, msg.quaternion.z, msg.quaternion.w]
+            self.orientation_buffer.append((t, q))
 
     def processing_thread(self):
         self.get_logger().info("Processing Thread Started.")
@@ -320,13 +321,14 @@ class Audio_Loc(Node):
 
             # iterate trough the chunk, and pass frames to audio processing
             while cursor + self.HOP_SIZE <= num_samples_in_chunk:
-                # # 1. Start time of each frame
-                # time_offset = cursor / self.samplerate
-                # frame_timestamp = chunk_start_timestamp + time_offset
-
-                # New way: use expected timestamp
-                #
-                frame_timestamp = self.next_expected_timestamp
+                # 1. Get timestamp at the center of each frame
+                # -- Start: self.next_expected_timestamp + self.HOP_SIZE / self.samplerate - self.FRAME_SIZE / self.samplerate
+                # -- End: self.next_expected_timestamp + self.HOP_SIZE / self.samplerate
+                # -- Middle: self.next_expected_timestamp + (self.HOP_SIZE - 0.5*self.FRAME_SIZE ) / self.samplerate
+                frame_timestamp = (
+                    self.next_expected_timestamp
+                    + (self.HOP_SIZE - 0.5 * self.FRAME_SIZE) / self.samplerate
+                )
 
                 # 2. Update audio frame
                 hop_data = new_audio_chunk[cursor : cursor + self.HOP_SIZE, :]
@@ -337,9 +339,7 @@ class Audio_Loc(Node):
 
                 # 3. Process frame
                 # Sound Source Localisation
-                doa_raw = self.audio_processor.process_frame(
-                    self.audio_frame, frame_timestamp
-                )
+                doa_raw = self.audio_processor.process_frame(self.audio_frame)
 
                 # Get closest fused quaternion (in time)
                 q_fused = get_closest_orientation(
